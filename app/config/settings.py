@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     # ---- LLM 重试 ----
     llm_max_retries: int = 3
     llm_retry_base_delay: float = 1.0  # 指数退避基数：1s, 2s, 4s
+    # 模型故障转移链：主模型失败→依次尝试（共享base_url仅换model；异构路由用LiteLLM）
+    fallback_models: list[str] = []
+    llm_fallback_seconds: float = 20.0  # 单模型单次调用超时（链总预算=次数×超时）
 
     # ---- MCP ----
     mcp_enabled: bool = False

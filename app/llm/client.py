@@ -478,7 +478,12 @@ class MockLLMClient(BaseLLMClient):
 
 
 def build_client(settings: Settings, tracer: Tracer) -> BaseLLMClient:
-    """工厂：离线判定集中在一处。"""
+    """工厂：离线判定集中在一处；真实模式且配置了备选模型时升级为故障转移链。"""
     if is_offline(settings):
         return MockLLMClient(tracer=tracer)
+    if getattr(settings, "fallback_models", None):
+        from app.llm.router import build_fallback_client
+        chained = build_fallback_client(settings, tracer)
+        if chained is not None:
+            return chained
     return OpenAICompatClient(settings, tracer)

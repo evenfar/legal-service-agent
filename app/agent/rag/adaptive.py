@@ -156,9 +156,23 @@ class SearchStats:
     strategy: str = ""
     retried: bool = False
     relevant: bool = True
+    confidence: float = 1.0   # 校准置信度：top1相关度×排序优势，三档拒答依据
     llm_calls: int = 0
     searches: int = 0
     candidates: int = 0
+
+
+def calibrate(chunks: list, query: str) -> float:
+    """置信度 = 相关性 × 排序优势（top1领先top2的程度）。0~1。"""
+    if not chunks:
+        return 0.0
+    rel = relevance(query, chunks[0].chunk.text)
+    if len(chunks) < 2:
+        return round(min(1.0, rel * 1.5), 3)
+    s1 = rerank_score(query, chunks[0])
+    s2 = rerank_score(query, chunks[1])
+    margin = min(1.0, max(0.0, (s1 - s2) / max(abs(s1), 1.0)))
+    return round(min(1.0, rel * (0.5 + margin)), 3)
 
 
 class AdaptiveRetriever:
@@ -267,6 +281,7 @@ class AdaptiveRetriever:
 
         chunks = self._run_strategy(strategy, query, stats)
         if _gate_pass(chunks):
+            stats.confidence = calibrate(chunks, query)
             return chunks[:top_k]
 
         # Self-RAG 不达标：换 fallback 策略重试一次（预算内）
@@ -277,6 +292,7 @@ class AdaptiveRetriever:
             retried = self._run_strategy(fallback, query, stats)
             if _gate_pass(retried):
                 stats.strategy = f"{strategy}→{fallback}"
+                stats.confidence = calibrate(retried, query)
                 return retried[:top_k]
             chunks = retried or chunks
 

@@ -26,7 +26,15 @@ def search_knowledge(retriever: KnowledgeRetriever, query: str, top_k: int = 0) 
     stats = getattr(retriever, "last_stats", None)  # AdaptiveRetriever 诊断信息
     if stats is not None:
         out["strategy"] = stats.strategy
-        out["relevant"] = stats.relevant
-        if not stats.relevant:
-            out["note"] = "知识库未检索到充分相关内容，以下为最接近的片段，请谨慎参考"
+        out["confidence"] = stats.confidence
+        # 三档拒答：检索层承认失败比幻觉安全
+        if stats.confidence < 0.25 or not stats.relevant:
+            out["chunks"] = []
+            out["relevant"] = False
+            out["note"] = "知识库未找到充分依据，建议转人工律师或换种问法"
+        elif stats.confidence < 0.5:
+            out["relevant"] = True
+            out["note"] = "检索依据不够充分，以下片段仅供参考，请谨慎采用"
+        else:
+            out["relevant"] = True
     return out
