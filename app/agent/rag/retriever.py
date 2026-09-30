@@ -64,8 +64,10 @@ def build_backend(settings: Settings) -> VectorBackend:
     return LocalBackend(settings.kb_index_path)
 
 
-def build_retriever(settings: Settings,
-                    tracer: Tracer | None = None) -> KnowledgeRetriever:
+def build_retriever(settings: Settings, tracer: Tracer | None = None,
+                    client=None) -> "KnowledgeRetriever | AdaptiveRetriever":
+    """adaptive_rag 开启时返回 AdaptiveRetriever 包装（duck-type 兼容原接口）；
+    client 注入则真实模式改写走 LLM，否则全离线确定性查表。"""
     retriever = KnowledgeRetriever(build_embedder(settings, tracer),
                                    build_backend(settings), settings.rag_top_k)
     # 离线模式的体验兜底：本地索引缺失时用 HashEmbedder 零成本自动构建，
@@ -74,6 +76,9 @@ def build_retriever(settings: Settings,
     if is_offline(settings) and settings.rag_backend == "local" \
             and not Path(settings.kb_index_path).exists():
         build_index(settings, tracer)
+    if getattr(settings, "adaptive_rag", False):
+        from app.agent.rag.adaptive import AdaptiveRetriever
+        return AdaptiveRetriever(retriever, client=client)
     return retriever
 
 

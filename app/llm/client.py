@@ -264,6 +264,15 @@ class MockLLMClient(BaseLLMClient):
         if purpose == "router":
             content = self._route(user)
             return self._mk(content, messages)
+        if purpose in ("hyde", "fusion_expand", "stepback"):
+            from app.agent.rag.adaptive import (offline_fusion, offline_hyde,
+                                                 offline_stepback)
+            if purpose == "hyde":
+                return self._mk(offline_hyde(user), messages)
+            if purpose == "stepback":
+                return self._mk(offline_stepback(user), messages)
+            joined = chr(10).join(offline_fusion(user))  # chr(10)规避转义歧义
+            return self._mk(joined, messages)
         if purpose == "summarize":
             content = "（摘要）" + user[:150]
             return self._mk(content, messages)

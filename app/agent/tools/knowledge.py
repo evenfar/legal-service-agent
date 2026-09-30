@@ -22,4 +22,11 @@ def search_knowledge(retriever: KnowledgeRetriever, query: str, top_k: int = 0) 
                 "text": c.chunk.text,
                 "sanitized": sanitize_tool_output(c.chunk.text)}
                for c in chunks]
-    return {"success": True, "query": query, "chunks": results}
+    out = {"success": True, "query": query, "chunks": results}
+    stats = getattr(retriever, "last_stats", None)  # AdaptiveRetriever 诊断信息
+    if stats is not None:
+        out["strategy"] = stats.strategy
+        out["relevant"] = stats.relevant
+        if not stats.relevant:
+            out["note"] = "知识库未检索到充分相关内容，以下为最接近的片段，请谨慎参考"
+    return out

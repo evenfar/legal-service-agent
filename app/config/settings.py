@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     chroma_persist_dir: str = "app/sessions/chroma"
     chroma_collection: str = "med_kb"
     rag_top_k: int = 3
+    # Phase 2 自适应检索栈（路由+HyDE/Fusion/StepBack+Rerank+Self-RAG），关闭则回退单路直查
+    adaptive_rag: bool = True
+    # Phase 2 自适应检索栈（路由+HyDE/Fusion/StepBack+Rerank+Self-RAG），关闭则回退单路直查
+    adaptive_rag: bool = True
 
     # ---- Multi-Agent ----
     multi_agent_enabled: bool = False

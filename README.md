@@ -52,5 +52,7 @@ python -m app.scripts.run_eval   # 18 条黄金用例评估（含4条安全红�
 
 ## Roadmap
 
-- **Phase 2**：AdaptiveRetriever 机制栈（HyDE/RAG-Fusion/Step-Back/Rerank/Self-RAG/路由）+ 机制对比表；指导案例语料入库；真实 embedding 接入
+- **Phase 2（已实现离线版）**：AdaptiveRetriever 机制栈上线——策略路由 + HyDE/Fusion/Step-Back + Rerank + Self-RAG门 + 预算护栏（`app/agent/rag/adaptive.py`）。
+  实测（12条groundtruth，离线Hash向量）：hit@3 基线0.33 → +Rerank 0.58 → 自适应 **0.75**；MRR 0.18→0.51；额外LLM成本 0。
+  对比命令：`python -m app.scripts.run_retrieval_eval --strict`。待续：真实 embedding 列重跑对比表
 - 工程化：CI / Docker / FastAPI 服务化（与 med 项目共用升级路径）

@@ -39,7 +39,7 @@ class LegalAgent(BaseAgentRuntime):
                 memory_dir=s.memory_dir, enabled=True,
                 max_ltm_facts=s.max_ltm_facts)
         self.skill_manager = SkillManager(s.skills_dir, s.skills_enabled)
-        self.retriever = build_retriever(s, self.tracer)
+        self.retriever = build_retriever(s, self.tracer, client=self.client)
         registry = build_tool_registry(ToolDeps(
             tracer=self.tracer, retriever=self.retriever,
             memory_manager=self.memory_manager,

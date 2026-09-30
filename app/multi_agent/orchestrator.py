@@ -38,7 +38,7 @@ class MultiAgentOrchestrator(BaseAgentRuntime):
                 memory_dir=s.memory_dir, enabled=True,
                 max_ltm_facts=s.max_ltm_facts)
         self.skill_manager = SkillManager(s.skills_dir, s.skills_enabled)
-        retriever = build_retriever(s, self.tracer)
+        retriever = build_retriever(s, self.tracer, client=self.client)
         # 全量注册一次，各子 Agent 用 subset 白名单取视图
         self._full_registry = build_tool_registry(ToolDeps(
             tracer=self.tracer, retriever=retriever,

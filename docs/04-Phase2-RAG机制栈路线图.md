@@ -1,3 +1,5 @@
+> 状态：核心机制已实现（adaptive.py + run_retrieval_eval.py），实测对比表见下；本文档其余部分为设计依据存档。
+
 # 04 Phase 2 预研：AdaptiveRetriever 机制栈路线图
 
 > 一句话目标：在现有 `KnowledgeRetriever` 之上规划一条"路由 → 粗召回 → 精排 → 反思 → 重试"的自适应检索流水线，并用 `corpus_groundtruth` 的 12 条标注做同题对比，让每个机制"值不值得开"由数字决定。
@@ -106,7 +108,7 @@ Self-RAG:  query"民法典第一千条是什么"（人格权编，本库未收�
 
 ### 7. 落地顺序与接口约束
 
-落地顺序（评估先行，没有基线数字就无法证明任何机制值得开）：① 评估脚本跑出基线 hit-rate/MRR → ② Rerank（纯代码、收益最确定）→ ③ 路由 + Self-RAG 规则版 → ④ HyDE/Fusion/Step-Back（各配 Mock 脚本与单测）→ ⑤ 真实 embedding 后重跑对比表定稿路由规则。接口约束：`AdaptiveRetriever` 采用组合而非改写——不修改 `KnowledgeRetriever.search` 现有契约与 `search_knowledge` 工具签名，评估用例（如 `test_retrieval_tort_hits_target`）与 18 条评估链路零改动即可回归。规划接口草案（再次强调：未实现）：
+落地顺序（评估先行，没有基线数字就无法证明任何机制值得开）：① 评估脚本跑出基线 hit-rate/MRR → ② Rerank（纯代码、收益最确定）→ ③ 路由 + Self-RAG 规则版 → ④ HyDE/Fusion/Step-Back（各配 Mock 脚本与单测）→ ⑤ 真实 embedding 后重跑对比表定稿路由规则。接口约束：`AdaptiveRetriever` 采用组合而非改写——不修改 `KnowledgeRetriever.search` 现有契约与 `search_knowledge` 工具签名，评估用例（如 `test_retrieval_tort_hits_target`）与 18 条评估链路零改动即可回归。规划接口草案（已实现于 app/agent/rag/adaptive.py）：
 
 ```python
 class AdaptiveRetriever:                       # 规划，代码未实现
