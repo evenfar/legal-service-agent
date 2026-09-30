@@ -33,7 +33,8 @@ MAX_LLM_CALLS = 4
 RECALL_K = 20
 GATE_THRESHOLD = 0.12          # 相关性门槛：query bigram 在正文的重叠率
 RRF_K = 60
-DENSE_GATE = 0.55          # dense top1 相似度高于此值→门控关闭BM25并票
+DENSE_GATE = 0.55
+GRAPH_BONUS_MARGIN = 5.0  # 图邻居顶替末位所需的rerank分差          # dense top1 相似度高于此值→门控关闭BM25并票
 
 # ---------------- 路由（启发式，零成本） ----------------
 
@@ -264,6 +265,35 @@ class AdaptiveRetriever:
                                )[:RECALL_K]
             ranked = sorted(shortlist,
                             key=lambda h: -rerank_score(query, h))
+        return self._graph_nominate(ranked, query)
+
+    def _graph_nominate(self, ranked: list[RetrievedChunk],
+                        query: str) -> list[RetrievedChunk]:
+        """引用图谱邻居提名：与top3有案例↔法条边的块，rerank分显著更高
+        （超过末位+GRAPH_BONUS_MARGIN）才顶替第3位——图只给机会，精排终裁。"""
+        if not self._kb_dir or len(ranked) < 3:
+            return ranked
+        from app.agent.rag.citation_graph import get_citation_graph
+        graph = get_citation_graph(self._kb_dir)
+        if not graph.edge_count:
+            return ranked
+        top_ids = {h.chunk.chunk_id for h in ranked[:3]}
+        neighbor_ids: set[str] = set()
+        for cid in top_ids:
+            neighbor_ids |= graph.neighbors(cid)
+        neighbor_ids -= top_ids
+        if not neighbor_ids:
+            return ranked
+        # 邻居必须在pool里才可比（pool来自召回）；否则从图chunk构造
+        base_score = rerank_score(query, ranked[2])
+        best, best_score = None, -1.0
+        for h in ranked[3:]:
+            if h.chunk.chunk_id in neighbor_ids:
+                sc = rerank_score(query, h)
+                if sc > best_score:
+                    best, best_score = h, sc
+        if best is not None and best_score > base_score + GRAPH_BONUS_MARGIN:
+            ranked = ranked[:2] + [best] + ranked[3:4]
         return ranked[:3]
 
     # ---- 对外入口（签名与 KnowledgeRetriever.search 兼容） ----

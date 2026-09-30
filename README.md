@@ -52,7 +52,12 @@ python -m app.scripts.run_eval   # 18 条黄金用例评估（含4条安全红�
 
 ## Roadmap
 
-- **Phase 2（已实现离线版）**：AdaptiveRetriever 机制栈上线——策略路由 + HyDE/Fusion/Step-Back + Rerank + Self-RAG门 + 预算护栏（`app/agent/rag/adaptive.py`）。
-  实测（12条groundtruth，离线Hash向量）：hit@3 基线0.33 → +Rerank 0.58 → 自适应 **0.75**；MRR 0.18→0.51；额外LLM成本 0。
-  对比命令：`python -m app.scripts.run_retrieval_eval --strict`。待续：真实 embedding 列重跑对比表
+- **Phase 2+（已完成）三层升级**：
+  ①自适应检索栈：策略路由 + HyDE/Fusion/Step-Back + Rerank + Self-RAG门 + 预算护栏（`rag/adaptive.py`）
+  ②混合检索+门控融合：BM25词法路并入RRF，dense置信≥0.55时自动纯语义（`rag/bm25.py`）
+  ③真实embedding列：OpenRouter text-embedding-3-small（`kb_index_real.json`）
+  ④兜错体系：模型故障转移链 主→备→规则模板永不失败（`llm/router.py`）+ 检索置信度三档拒答
+  ⑤法条引用图谱：案例↔法条双向边邻居提名（`rag/citation_graph.py`）+ 规则NLI句级防幻觉（`safety/nli.py`）
+  实测（12条groundtruth双列）：离线hash hit@3 0.33→**0.83**；真实emb 0.92→**1.00**（rerank/hybrid/adaptive并列满档）
+  `python -m app.scripts.run_retrieval_eval --strict [--real]`；104测试全绿
 - 工程化：CI / Docker / FastAPI 服务化（与 med 项目共用升级路径）

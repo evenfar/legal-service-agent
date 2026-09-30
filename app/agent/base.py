@@ -195,6 +195,24 @@ class BaseAgentRuntime:
             if fakes:
                 self.tracer.log("fake_citations_removed", fakes=fakes)
             final = append_sources_if_missing(final, sources)
+            # 规则NLI句级核验：支持率过低→标记转人工（不改写文本，防核验器
+            # 自身错误污染正确答案；真实模式可升级cross-encoder，接口不变）
+            evidence = []
+            for name, out in outputs:
+                if name == "search_knowledge":
+                    try:
+                        evidence += [c.get("sanitized", c.get("text", ""))
+                                     for c in json.loads(out).get("chunks", [])]
+                    except json.JSONDecodeError:
+                        pass
+            if evidence:
+                from app.agent.safety.nli import verify_reply_support
+                verdict = verify_reply_support(final, evidence)
+                self.tracer.log("nli_check", **verdict)
+                if verdict["supported_ratio"] < 0.5 and verdict["checked"] >= 2:
+                    forced_human = True
+                    self.tracer.log("nli_low_support",
+                                    ratio=verdict["supported_ratio"])
         for name, out in outputs:
             if name != "query_lab_report":
                 continue
