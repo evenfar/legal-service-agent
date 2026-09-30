@@ -78,7 +78,9 @@ def build_retriever(settings: Settings, tracer: Tracer | None = None,
         build_index(settings, tracer)
     if getattr(settings, "adaptive_rag", False):
         from app.agent.rag.adaptive import AdaptiveRetriever
-        return AdaptiveRetriever(retriever, client=client)
+        hybrid = getattr(settings, "hybrid_search", True)
+        return AdaptiveRetriever(retriever, client=client,
+                                 kb_dir=settings.kb_dir if hybrid else None)
     return retriever
 
 

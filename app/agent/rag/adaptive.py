@@ -163,10 +163,12 @@ class SearchStats:
 class AdaptiveRetriever:
     """组合 KnowledgeRetriever；duck-type 兼容 .search/.size 原有调用。"""
 
-    def __init__(self, base: KnowledgeRetriever, client=None):
+    def __init__(self, base: KnowledgeRetriever, client=None, kb_dir=None):
         self.base = base
         self.client = client          # None=离线确定性改写；传入则真实模式走LLM
         self.last_stats = SearchStats()
+        self._kb_dir = kb_dir         # 提供则启用混合检索（dense+BM25→RRF）
+        self._bm25 = None
 
     @property
     def embedder_model(self) -> str:
@@ -213,21 +215,38 @@ class AdaptiveRetriever:
             if stats.searches >= MAX_SEARCHES:
                 break
             hits = self.base.search(q, top_k=RECALL_K)
-            stats.searches += 1
+            stats.searches += 1  # 预算只计dense检索（BM25零成本）
             stats.candidates = max(stats.candidates, len(hits))
             for h in hits:
                 pool[h.chunk.chunk_id] = h
             rankings.append([h.chunk.chunk_id for h in hits])
+            # 混合检索：BM25作为第二路排名（词法精确性），与dense同入RRF
+            if self._kb_dir:
+                if self._bm25 is None:
+                    from app.agent.rag.bm25 import get_bm25
+                    self._bm25 = get_bm25(self._kb_dir)
+                bm_hits = self._bm25.search(q, top_k=RECALL_K)
+                top_score = bm_hits[0][1] if bm_hits else 1.0
+                for cid, sc in bm_hits:
+                    if cid not in pool:
+                        ch = self._bm25.get_chunk(cid)
+                        if ch is not None:
+                            pool[cid] = RetrievedChunk(chunk=ch, score=sc / (top_score or 1.0))
+                rankings.append([cid for cid, _ in bm_hits])
         if not rankings:
             return []
         if len(rankings) == 1:
             ranked = sorted(pool.values(),
                             key=lambda h: -rerank_score(query, h))
         else:
-            merged = rrf_merge(rankings)                 # 先RRF投票
-            ranked = sorted(pool.values(),
-                            key=lambda h: (-merged.get(h.chunk.chunk_id, 0.0),
-                                           -rerank_score(query, h)))
+            # RRF投票选出候选池top-20，终序由rerank全权决定
+            #（rerank只做tie-break会浪费精排信号——实测掉点）
+            merged = rrf_merge(rankings)
+            shortlist = sorted(pool.values(),
+                               key=lambda h: -merged.get(h.chunk.chunk_id, 0.0)
+                               )[:RECALL_K]
+            ranked = sorted(shortlist,
+                            key=lambda h: -rerank_score(query, h))
         return ranked[:3]
 
     # ---- 对外入口（签名与 KnowledgeRetriever.search 兼容） ----

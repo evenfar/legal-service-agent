@@ -51,6 +51,26 @@ def evaluate(retriever, entries, mode: str) -> dict:
             recalled = retriever.base.search(e["query"], top_k=RECALL_K)
             hits = sorted(recalled, key=lambda h: -rerank_score(e["query"], h))[:3]
             n_llm, n_search = 0, 1
+        elif mode == "hybrid":
+            from app.agent.rag.bm25 import get_bm25
+            from app.agent.rag.adaptive import rrf_merge
+            from app.agent.rag.backends.base import RetrievedChunk
+            from pathlib import Path as _P
+            dense = retriever.base.search(e["query"], top_k=RECALL_K)
+            bm = get_bm25(str(_P("app/agent/rag/knowledge"))).search(e["query"], RECALL_K)
+            pool = {h.chunk.chunk_id: h for h in dense}
+            idx = get_bm25(str(_P("app/agent/rag/knowledge")))
+            top = bm[0][1] if bm else 1.0
+            for cid, sc in bm:
+                if cid not in pool:
+                    ch = idx.get_chunk(cid)
+                    if ch is not None:
+                        pool[cid] = RetrievedChunk(chunk=ch, score=sc / (top or 1.0))
+            fused = rrf_merge([[h.chunk.chunk_id for h in dense], [c for c, _ in bm]])
+            hits = sorted(pool.values(),
+                          key=lambda h: -fused.get(h.chunk.chunk_id, 0.0))[:RECALL_K]
+            hits = sorted(hits, key=lambda h: -rerank_score(e["query"], h))[:3]
+            n_llm, n_search = 0, 1
         else:  # adaptive 全栈
             hits = retriever.search(e["query"], top_k=3)
             st = retriever.last_stats
@@ -76,7 +96,7 @@ def main() -> None:
     retriever = build_retriever(Settings(mock_mode=True))  # AdaptiveRetriever
 
     results = {m: evaluate(retriever, entries, m)
-               for m in ("baseline", "rerank", "adaptive")}
+               for m in ("baseline", "rerank", "hybrid", "adaptive")}
 
     print(f"\n═══ 检索质量对比（{len(entries)} 条 groundtruth，离线 HashEmbedder）═══")
     print(f"{'机制':<12}{'hit@3':>8}{'MRR':>8}{'平均LLM':>9}{'平均检索':>9}")

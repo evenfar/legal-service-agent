@@ -42,8 +42,12 @@ class Settings(BaseSettings):
     rag_top_k: int = 3
     # Phase 2 自适应检索栈（路由+HyDE/Fusion/StepBack+Rerank+Self-RAG），关闭则回退单路直查
     adaptive_rag: bool = True
+    # 混合检索：dense召回之外并入BM25词法路（RRF融合），条号/专名精确性保障
+    hybrid_search: bool = True
     # Phase 2 自适应检索栈（路由+HyDE/Fusion/StepBack+Rerank+Self-RAG），关闭则回退单路直查
     adaptive_rag: bool = True
+    # 混合检索：dense召回之外并入BM25词法路（RRF融合），条号/专名精确性保障
+    hybrid_search: bool = True
 
     # ---- Multi-Agent ----
     multi_agent_enabled: bool = False
