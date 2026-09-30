@@ -33,6 +33,7 @@ MAX_LLM_CALLS = 4
 RECALL_K = 20
 GATE_THRESHOLD = 0.12          # 相关性门槛：query bigram 在正文的重叠率
 RRF_K = 60
+DENSE_GATE = 0.55          # dense top1 相似度高于此值→门控关闭BM25并票
 
 # ---------------- 路由（启发式，零成本） ----------------
 
@@ -220,8 +221,10 @@ class AdaptiveRetriever:
             for h in hits:
                 pool[h.chunk.chunk_id] = h
             rankings.append([h.chunk.chunk_id for h in hits])
-            # 混合检索：BM25作为第二路排名（词法精确性），与dense同入RRF
-            if self._kb_dir:
+            # 门控混合：dense置信高（真实embedding语义强）时纯语义即可，
+            # BM25并票反而稀释排名；dense弱（hash/口语失配）才放词法路进来。
+            dense_confident = bool(hits) and hits[0].score >= DENSE_GATE
+            if self._kb_dir and not dense_confident:
                 if self._bm25 is None:
                     from app.agent.rag.bm25 import get_bm25
                     self._bm25 = get_bm25(self._kb_dir)

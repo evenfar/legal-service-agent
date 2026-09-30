@@ -30,18 +30,27 @@ def main() -> None:
     parser.add_argument("--judge", action="store_true",
                         help="强制启用 LLM-as-judge（需要真实 API Key）")
     parser.add_argument("--no-judge", dest="judge", action="store_false")
+    parser.add_argument("--real", action="store_true",
+                        help="真实模式评估（默认离线mock：评估用例按mock行为编写，"
+                             "真实回复的措辞无法通过关键词断言）")
     parser.add_argument("--output", default=None, help="结果 JSON 输出路径")
     parser.set_defaults(judge=None)
     args = parser.parse_args()
 
     settings = Settings()
-    offline = is_offline(settings) and not args.judge
-    if args.judge and is_offline(settings):
-        print("⚠️  请求 --judge 但未配置 API Key，仍将使用离线模式（judge 不可用）")
+    # 默认离线：评估集的 expected_keywords/expected_tools 是按 mock 确定性行为
+    # 标注的；有 Key 也不自动切真实（真实模式评估应配 judge + 专用期望集）
+    offline = (not args.real) or is_offline(settings)
+    if not offline:
+        print("⚠️  真实模式评估：关键词断言按mock编写，预期通过率低，仅供参考")
 
     dataset = args.dataset or settings.eval_dataset_path
     cases = load_dataset(dataset)
     sandbox = Sandbox(mode=args.mode, offline=offline)
+    # judge 仅在显式 --judge 时启用：有 Key 的环境里默认走规则模式，
+    # 避免对 mock 回答跑真实 LLM-judge（既烧钱又必然低分）
+    if not args.judge:
+        settings.eval_use_judge = False
     evaluator = Evaluator(sandbox, settings)
     report = evaluator.run_all(cases)
 

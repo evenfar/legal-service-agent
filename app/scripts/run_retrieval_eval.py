@@ -57,7 +57,11 @@ def evaluate(retriever, entries, mode: str) -> dict:
             from app.agent.rag.backends.base import RetrievedChunk
             from pathlib import Path as _P
             dense = retriever.base.search(e["query"], top_k=RECALL_K)
-            bm = get_bm25(str(_P("app/agent/rag/knowledge"))).search(e["query"], RECALL_K)
+            from app.agent.rag.adaptive import DENSE_GATE
+            if dense and dense[0].score >= DENSE_GATE:
+                bm = []          # 门控：语义已强，BM25不并票
+            else:
+                bm = get_bm25(str(_P("app/agent/rag/knowledge"))).search(e["query"], RECALL_K)
             pool = {h.chunk.chunk_id: h for h in dense}
             idx = get_bm25(str(_P("app/agent/rag/knowledge")))
             top = bm[0][1] if bm else 1.0
@@ -90,15 +94,24 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--strict", action="store_true",
                         help="护栏：自适应 hit-rate 不得低于基线")
+    parser.add_argument("--real", action="store_true",
+                        help="真实embedding列（读.env配置与真实索引）")
     args = parser.parse_args()
 
     entries = load_groundtruth()
-    retriever = build_retriever(Settings(mock_mode=True))  # AdaptiveRetriever
+    offline = not args.real
+    settings = Settings(mock_mode=offline)
+    if not offline:
+        settings.kb_index_path = "app/sessions/kb_index_real.json"
+    retriever = build_retriever(settings)  # AdaptiveRetriever
 
     results = {m: evaluate(retriever, entries, m)
                for m in ("baseline", "rerank", "hybrid", "adaptive")}
 
-    print(f"\n═══ 检索质量对比（{len(entries)} 条 groundtruth，离线 HashEmbedder）═══")
+    emb = "真实 text-embedding-3-small" if not offline else "离线 HashEmbedder"
+    header = chr(10) * 0 + "═══ 检索质量对比（{} 条 groundtruth，{}）═══".format(len(entries), emb)
+    print()
+    print(header)
     print(f"{'机制':<12}{'hit@3':>8}{'MRR':>8}{'平均LLM':>9}{'平均检索':>9}")
     for name, r in results.items():
         print(f"{name:<12}{r['hit']:>8.2f}{r['mrr']:>8.3f}"
