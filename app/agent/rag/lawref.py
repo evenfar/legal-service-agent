@@ -35,7 +35,10 @@ def num2cn(n: int) -> str:
         thousand, rest = n // 1000, n % 1000
         cn = num2cn(thousand) + "千"
         if rest:
-            cn += ("零" + num2cn(rest)) if rest < 100 else num2cn(rest)
+            if rest < 100:            # 1001~1099：必须补"零"；1010类还要补"一"
+                cn += "零" + ("一" if 10 <= rest < 20 else "") + num2cn(rest)
+            else:
+                cn += num2cn(rest)
         return cn
     if n < 100:
         if n < 20:
@@ -48,7 +51,7 @@ def num2cn(n: int) -> str:
     if rest < 10:
         return head + "零" + num2cn(rest)
     if rest < 20:
-        return head + "零" + num2cn(rest)
+        return head + "一" + num2cn(rest)   # 110=一百一十, 非"一百零十"
     return head + num2cn(rest)
 
 

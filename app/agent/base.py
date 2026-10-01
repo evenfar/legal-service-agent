@@ -150,10 +150,15 @@ class BaseAgentRuntime:
 
     def extract_structured(self, text: str) -> LegalResponse:
         self._trace_debug("结构化提取输入", {"text": text})
-        result = self.client.parse_structured(
-            [{"role": "system", "content": EXTRACT_SYSTEM},
-             {"role": "user", "content": text}],
-            LegalResponse, purpose="extract")
+        try:
+            result = self.client.parse_structured(
+                [{"role": "system", "content": EXTRACT_SYSTEM},
+                 {"role": "user", "content": text}],
+                LegalResponse, purpose="extract")
+        except Exception:  # noqa: BLE001 —— 提取全链失败：降级原文+转人工
+            # 一次JSON失败不该丢弃已完成的ReAct回复（优雅收尾原则）
+            self.tracer.log("extract_fallback_raw", chars=len(text))
+            return LegalResponse(reply=text, requires_human=True, confidence=0.3)
         self._trace_debug("结构化提取结果", result.model_dump(mode="json"))
         return result
 
@@ -194,9 +199,7 @@ class BaseAgentRuntime:
             final, fakes = validate_citations(final, sources)
             if fakes:
                 self.tracer.log("fake_citations_removed", fakes=fakes)
-            final = append_sources_if_missing(final, sources)
-            # 规则NLI句级核验：支持率过低→标记转人工（不改写文本，防核验器
-            # 自身错误污染正确答案；真实模式可升级cross-encoder，接口不变）
+            # 规则NLI句级核验（在追加参考来源之前：来源行由代码生成无需核验）
             evidence = []
             for name, out in outputs:
                 if name == "search_knowledge":
@@ -213,6 +216,7 @@ class BaseAgentRuntime:
                     forced_human = True
                     self.tracer.log("nli_low_support",
                                     ratio=verdict["supported_ratio"])
+            final = append_sources_if_missing(final, sources)
         for name, out in outputs:
             if name != "query_lab_report":
                 continue

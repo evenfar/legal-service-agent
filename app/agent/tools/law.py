@@ -11,42 +11,16 @@ import re
 
 from app.agent.tools.mock_data import LAW_ARTICLES, LAW_TOPICS
 
-_CN = "零一二三四五六七八九"
-
-
-def _num2cn(n: int) -> str:
-    """1000~1260 范围阿拉伯数字 → 中文数字（民法典条号）。"""
-    if n < 10:
-        return _CN[n]
-    if n < 100:
-        if n < 20:
-            return "十" + (_CN[n % 10] if n % 10 else "")
-        return _CN[n // 10] + "十" + (_CN[n % 10] if n % 10 else "")
-    h, rest = n // 100, n % 100
-    head = _CN[h] + "百"
-    if rest == 0:
-        return head
-    if rest < 10:
-        return head + "零" + _CN[rest]
-    if rest < 20:
-        return head + "零" + _num2cn(rest)
-    return head + _num2cn(rest)
+from app.agent.rag.lawref import num2cn  # 条号转换集中一处（lawref.py），消除双副本漂移
 
 
 def _normalize_article(raw: str) -> str:
-    """'第188条'/'第1062条' → '第一百八十八条'/'第一千零六十二条'。"""
     m = re.match(r"第(\d+)条", raw.strip())
     if not m:
         return raw.strip()
     n = int(m.group(1))
-    if 1000 <= n <= 1260:
-        thousand, rest = n // 1000, n % 1000
-        cn = _CN[thousand] + "千"
-        if rest:
-            cn += ("零" + _num2cn(rest)) if rest < 100 else _num2cn(rest)
-        return f"第{cn}条"
-    if n < 1000:
-        return f"第{_num2cn(n)}条"
+    if 1 <= n <= 1260:
+        return f"第{num2cn(n)}条"
     return raw.strip()
 
 

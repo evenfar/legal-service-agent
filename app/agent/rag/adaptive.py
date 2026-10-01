@@ -284,7 +284,7 @@ class AdaptiveRetriever:
         neighbor_ids -= top_ids
         if not neighbor_ids:
             return ranked
-        # 邻居必须在pool里才可比（pool来自召回）；否则从图chunk构造
+        # 邻居仅从召回池ranked[3:]里找：图提名受召回上限约束（设计边界）
         base_score = rerank_score(query, ranked[2])
         best, best_score = None, -1.0
         for h in ranked[3:]:
@@ -294,7 +294,7 @@ class AdaptiveRetriever:
                     best, best_score = h, sc
         if best is not None and best_score > base_score + GRAPH_BONUS_MARGIN:
             ranked = ranked[:2] + [best] + ranked[3:4]
-        return ranked[:3]
+        return ranked  # 不在此截断，由外层 search 的 [:top_k] 统一裁剪
 
     # ---- 对外入口（签名与 KnowledgeRetriever.search 兼容） ----
 
@@ -327,5 +327,6 @@ class AdaptiveRetriever:
             chunks = retried or chunks
 
         stats.relevant = False                            # 显式承认失败
+        stats.confidence = 0.0                            # 失败路径置信度归零
         stats.strategy = f"{strategy}→{fallback}✗"
         return chunks[:top_k]

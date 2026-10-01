@@ -62,7 +62,7 @@ class FallbackLLMClient(BaseLLMClient):
             try:
                 return client.chat(messages, tools=tools, temperature=temperature,
                                    max_tokens=max_tokens, purpose=purpose)
-            except LLMError as e:
+            except Exception as e:  # noqa: BLE001 —— 认证/参数等原始异常也须降级
                 self.fallback_used.append(f"{name}:{type(e).__name__}")
                 if self._tracer:
                     self._tracer.log("llm_fallback", from_model=name,
@@ -76,8 +76,11 @@ class FallbackLLMClient(BaseLLMClient):
         for name, client in self._chains:
             try:
                 return client.parse_structured(messages, schema, purpose=purpose)
-            except LLMError as e:
+            except Exception as e:  # noqa: BLE001
                 self.fallback_used.append(f"{name}:parse")
+                if self._tracer:
+                    self._tracer.log("llm_fallback", from_model=name,
+                                     purpose=purpose, error=str(e)[:120])
                 last = e
                 continue
         raise last or LLMError("模型链全部不可用")

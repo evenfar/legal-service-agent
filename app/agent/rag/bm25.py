@@ -78,11 +78,18 @@ class BM25Index:
 _bm25_cache: dict[str, BM25Index] = {}
 
 
+def _dir_sig(kb_dir: str) -> float:
+    """目录内容签名（最新mtime）：知识库更新后缓存自动失效。"""
+    return max((p.stat().st_mtime for p in Path(kb_dir).glob("*.md")),
+               default=0.0)
+
+
 def get_bm25(kb_dir: str) -> BM25Index:
-    """进程内缓存：同一知识库目录只建一次索引。"""
-    idx = _bm25_cache.get(kb_dir)
+    """进程内缓存：知识库目录内容未变时只建一次索引。"""
+    key = (kb_dir, _dir_sig(kb_dir))
+    idx = _bm25_cache.get(key)
     if idx is None:
         idx = BM25Index()
         idx.build(chunk_markdown_dir(Path(kb_dir)))
-        _bm25_cache[kb_dir] = idx
+        _bm25_cache[key] = idx
     return idx

@@ -61,10 +61,15 @@ class CitationGraph:
         return sum(len(v) for v in self.case_to_articles.values())
 
 
+def _dir_sig(kb_dir: str) -> float:
+    return max((p.stat().st_mtime for p in Path(kb_dir).glob("*.md")),
+               default=0.0)
+
+
 def get_citation_graph(kb_dir: str) -> CitationGraph:
-    g = _graph_cache.get(kb_dir)
+    g = _graph_cache.get((kb_dir, _dir_sig(kb_dir)))
     if g is None:
         g = CitationGraph()
         g.build(chunk_markdown_dir(Path(kb_dir)))
-        _graph_cache[kb_dir] = g
+        _graph_cache[(kb_dir, _dir_sig(kb_dir))] = g
     return g
