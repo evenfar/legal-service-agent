@@ -4,7 +4,6 @@
 
 > 一句话目标：在现有 `KnowledgeRetriever` 之上规划一条"路由 → 粗召回 → 精排 → 反思 → 重试"的自适应检索流水线，并用 `corpus_groundtruth` 的 12 条标注做同题对比，让每个机制"值不值得开"由数字决定。
 >
-> **本文档是设计稿：以下所有类名（AdaptiveRetriever 等）与机制均未实现，代码库中不存在 hyde/fusion/stepback/rerank 相关代码。**
 
 ## 背景与数据流
 

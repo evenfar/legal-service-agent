@@ -25,7 +25,7 @@ def main() -> None:
     if settings.multi_agent_enabled:
         from app.multi_agent.orchestrator import MultiAgentOrchestrator
         agent = MultiAgentOrchestrator(settings)
-        mode = "Multi-Agent（挂号/用药/报告/急诊 分流）"
+        mode = "Multi-Agent（婚姻家事/合同债务/侵权赔偿/紧急通道 分流）"
     else:
         from app.agent.chat import LegalAgent
         agent = LegalAgent(settings)
@@ -94,7 +94,7 @@ def main() -> None:
     agent.save()
     agent.close()
     print(agent.tracer.summary())
-    print("再见，祝您健康！")
+    print("再见，祝维权顺利！")
 
 
 if __name__ == "__main__":

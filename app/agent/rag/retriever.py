@@ -8,13 +8,18 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from app.agent.rag.backends.base import RetrievedChunk, VectorBackend
 from app.agent.rag.backends.chroma_backend import ChromaBackend
+
 from app.agent.rag.backends.local_backend import LocalBackend
 from app.agent.rag.chunker import Chunk, chunk_markdown_dir
 from app.agent.rag.embedder import BaseEmbedder, build_embedder
 from app.agent.tracer import Tracer
+
+if TYPE_CHECKING:  # 仅静态检查用；运行时 AdaptiveRetriever 延迟导入避免环
+    from app.agent.rag.adaptive import AdaptiveRetriever
 from app.config.settings import Settings
 
 __all__ = ["KnowledgeRetriever", "RetrievedChunk", "Chunk",

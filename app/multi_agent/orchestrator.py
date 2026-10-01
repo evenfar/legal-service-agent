@@ -22,7 +22,7 @@ from app.schemas.response import LegalResponse
 
 
 class MultiAgentOrchestrator(BaseAgentRuntime):
-    """多 Agent 模式：Router 分流到 挂号/用药/报告/急诊 四个子 Agent。"""
+    """多 Agent 模式：Router 分流到 婚姻家事/合同债务/侵权赔偿/紧急通道 四个子 Agent。"""
 
     def __init__(self, settings: Optional[Settings] = None,
                  session_path: Optional[str] = None,

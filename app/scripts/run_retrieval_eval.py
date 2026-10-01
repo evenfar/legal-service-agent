@@ -61,9 +61,9 @@ def evaluate(retriever, entries, mode: str) -> dict:
             if dense and dense[0].score >= DENSE_GATE:
                 bm = []          # 门控：语义已强，BM25不并票
             else:
-                bm = get_bm25(str(_P("app/agent/rag/knowledge"))).search(e["query"], RECALL_K)
+                bm = get_bm25(str(_P(settings.kb_dir))).search(e["query"], RECALL_K)
             pool = {h.chunk.chunk_id: h for h in dense}
-            idx = get_bm25(str(_P("app/agent/rag/knowledge")))
+            idx = get_bm25(str(_P(settings.kb_dir)))
             top = bm[0][1] if bm else 1.0
             for cid, sc in bm:
                 if cid not in pool:

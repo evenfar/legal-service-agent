@@ -22,7 +22,7 @@ from app.schemas.response import LegalResponse
 
 
 class LegalAgent(BaseAgentRuntime):
-    """健康咨询助手「小医」（单 Agent 模式）。"""
+    """法律咨询助手「小律」（单 Agent 模式）。"""
 
     def __init__(self, settings: Optional[Settings] = None,
                  session_path: Optional[str] = None,
