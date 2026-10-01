@@ -10,6 +10,8 @@ conda activate med-agent
 cd legal-service-agent
 
 python main.py --mock            # 单 Agent 模式
+# 或起 Web 界面（聊天 + 实时看 Agent 思考过程）：
+uvicorn app.api:app --port 8300  # 打开 http://127.0.0.1:8300（默认mock零成本）
 python main.py --mock --multi    # Multi-Agent（婚姻家事/合同债务/侵权赔偿/紧急通道）
 python main.py --mock --trace    # 逐层打印 LLM 请求/工具调用/结构化提取
 
