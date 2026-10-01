@@ -116,7 +116,7 @@ class LongTermMemory:
                      "basic": "基本情况", "other": "其他"}
         lines = [f"- [{cat_label.get(f.category, f.category)}] {f.content}"
                  for f in self.facts[-15:]]
-        return ("## 用户健康档案（长期记忆，用药咨询前必须核对过敏史与在用药品）\n"
+        return ("## 用户档案（长期记忆，涉案件建议前必须核对在办案件与关键日期）\n"
                 + "\n".join(lines))
 
     def reset(self) -> None:
