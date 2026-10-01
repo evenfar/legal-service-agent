@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小律 · 法律咨询Agent全链路浏览器</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#11161d; --panel2:#171e28; --panel3:#1c2530;
+    --line:#26303d; --line2:#33404f;
+    --txt:#cdd6e1; --dim:#8194a6; --faint:#5b6b7b;
+    --blue:#58a6ff; --green:#3fb950; --red:#f85149; --orange:#f0883e;
+    --purple:#bc8cff; --cyan:#39c5cf; --yellow:#d29922; --gray:#8b949e;
+    --mono:Consolas,"Courier New",monospace;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); color:var(--txt);
+    font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif; font-size:14px;}
+  code,.mono,pre{font-family:var(--mono);}
+  a{color:var(--blue);}
+
+  /* ---------- 头部与Tab ---------- */
+  header{position:sticky; top:0; z-index:50; background:rgba(11,15,20,.94);
+    border-bottom:1px solid var(--line); backdrop-filter:blur(4px);}
+  .head-in{max-width:1280px; margin:0 auto; padding:14px 20px 0;}
+  .brand{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;}
+  .brand h1{font-size:19px; letter-spacing:.5px;}
+  .brand h1 b{color:var(--blue);}
+  .brand .sub{color:var(--dim); font-size:12px;}
+  .tabs{display:flex; gap:4px; margin-top:12px; flex-wrap:wrap;}
+  .tabs button{background:none; border:none; color:var(--dim); cursor:pointer;
+    font-size:14px; padding:9px 16px; border-bottom:2px solid transparent;
+    font-family:inherit;}
+  .tabs button:hover{color:var(--txt);}
+  .tabs button.on{color:var(--blue); border-bottom-color:var(--blue);}
+  .tabs button .k{font-size:11px; color:var(--faint); margin-right:5px;}
+  main{max-width:1280px; margin:0 auto; padding:20px;}
+  section.view{display:none;}
+  section.view.on{display:block;}
+  .hint{color:var(--faint); font-size:12px; margin:6px 0 14px;}
+  .hint b{color:var(--dim); font-weight:normal;}
+
+  /* ---------- 通用卡片 ---------- */
+  .card{background:var(--panel); border:1px solid var(--line);
+    border-radius:10px; padding:14px 16px;}
+  .card h3{font-size:14px; color:var(--txt); margin-bottom:8px;}
+  .chip{display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px;
+    border:1px solid var(--line2); color:var(--dim); margin:2px 3px 2px 0;}
+  .tag{font-size:11px; padding:1px 7px; border-radius:4px; font-family:var(--mono);}
+  .switch{display:inline-flex; align-items:center; gap:8px; cursor:pointer;
+    color:var(--dim); font-size:13px; user-select:none;}
+  .switch .knob{width:34px; height:18px; border-radius:10px; background:var(--panel3);
+    border:1px solid var(--line2); position:relative; transition:.15s;}
+  .switch .knob::after{content:""; position:absolute; width:12px; height:12px;
+    border-radius:50%; background:var(--dim); top:2px; left:2px; transition:.15s;}
+  .switch.on .knob{background:#1c3a5f; border-color:var(--blue);}
+  .switch.on .knob::after{left:17px; background:var(--blue);}
+  .switch.on{color:var(--blue);}
+  button.btn{background:var(--panel3); color:var(--txt); border:1px solid var(--line2);
+    border-radius:6px; padding:6px 14px; cursor:pointer; font-size:13px; font-family:inherit;}
+  button.btn:hover{border-color:var(--blue); color:var(--blue);}
+  button.btn:disabled{opacity:.35; cursor:not-allowed;}
+  button.btn.pri{background:#173a5e; border-color:#2d5b8f; color:#cfe6ff;}
+  button.btn.pri:hover{border-color:var(--blue);}
+
+  /* ---------- Tab1 主链路 ---------- */
+  .flow{display:flex; align-items:stretch; gap:0; flex-wrap:wrap; row-gap:26px; margin-top:8px;}
+  .node{position:relative; width:150px; min-height:118px; background:var(--panel2);
+    border:1px solid var(--line2); border-radius:10px; padding:10px 10px 8px;
+    cursor:pointer; transition:.15s; display:flex; flex-direction:column;}
+  .node:hover{transform:translateY(-3px); border-color:var(--nc,var(--blue));
+    box-shadow:0 4px 14px rgba(0,0,0,.45);}
+  .node.hl{border-color:var(--nc,var(--blue)); box-shadow:0 0 0 2px var(--nc,var(--blue)) inset,
+    0 0 16px color-mix(in srgb,var(--nc,var(--blue)) 35%, transparent);}
+  .node .no{font-size:11px; font-family:var(--mono); color:var(--nc,var(--blue));}
+  .node .tt{font-size:15px; font-weight:bold; margin:3px 0 5px; color:#e8eef5;}
+  .node .fl{font-size:10.5px; color:var(--faint); font-family:var(--mono); line-height:1.5;
+    margin-top:auto; word-break:break-all;}
+  .node.multi{display:none; border-style:dashed;}
+  body.multi .node.multi{display:flex;}
+  body.multi .arr.multi-arr{display:flex;}
+  .arr{width:34px; display:flex; align-items:center; justify-content:center;
+    color:var(--faint); font-size:17px; flex:none;}
+  .arr.multi-arr{display:none;}
+  .node.sm{width:112px; min-height:96px; padding:8px;}
+  .node.sm .tt{font-size:12.5px;}
+  .node.sm .fl{font-size:9.5px;}
+  .legend{display:flex; gap:14px; flex-wrap:wrap; margin-top:18px; color:var(--faint); font-size:12px;}
+  .legend i{display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:5px;}
+  .prin-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(270px,1fr));
+    gap:14px; margin-top:22px;}
+  .prin-grid .card h3{display:flex; align-items:center; gap:8px; margin-bottom:10px;}
+  .prin-grid .ptext{color:var(--dim); font-size:12.5px; line-height:1.9;}
+  .prin-grid .ptext code{color:var(--cyan); font-size:11.5px;
+    background:var(--panel2); padding:1px 5px; border-radius:4px;}
+
+  /* ---------- 详情弹窗 ---------- */
+  #mask{position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:90; display:none;}
+  #mask.on{display:block;}
+  #modal{position:fixed; z-index:91; top:50%; left:50%; transform:translate(-50%,-52%);
+    width:min(680px,92vw); max-height:84vh; overflow:auto; display:none;
+    background:var(--panel); border:1px solid var(--line2); border-radius:12px;
+    padding:20px 22px; box-shadow:0 12px 48px rgba(0,0,0,.6);}
+  #modal.on{display:block;}
+  #modal h2{font-size:17px; margin-bottom:4px;}
+  #modal .mfile{font-family:var(--mono); font-size:12px; color:var(--cyan); margin-bottom:12px;}
+  #modal .msec{margin:12px 0;}
+  #modal .msec .lab{font-size:11px; color:var(--faint); letter-spacing:1px; margin-bottom:5px;}
+  #modal .msec .val{background:var(--panel2); border:1px solid var(--line);
+    border-radius:8px; padding:10px 12px; font-size:13px; line-height:1.75; color:var(--txt);}
+  #modal .msec .val.mono{font-family:var(--mono); font-size:12px; white-space:pre-wrap; word-break:break-all;}
+  #modal .msec .val .io{color:var(--green);}
+  #modal .msec .val .io2{color:var(--orange);}
+  #modal .mclose{position:absolute; top:12px; right:14px; background:none; border:none;
+    color:var(--dim); font-size:20px; cursor:pointer;}
+  #modal .mclose:hover{color:var(--red);}
+
+  /* ---------- Tab2 一次消息的旅程 ---------- */
+  .jw-head{display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:14px;}
+  .jw-q{background:var(--panel2); border:1px solid var(--line); border-radius:8px;
+    padding:8px 14px; color:#e8eef5;}
+  .jw-q .who{color:var(--blue); font-size:12px; margin-right:8px;}
+  .steps{display:flex; gap:6px; flex-wrap:wrap; margin:0 0 14px;}
+  .steps .st{width:30px; height:30px; border-radius:50%; border:1px solid var(--line2);
+    background:var(--panel2); color:var(--dim); font-size:12px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;}
+  .steps .st.done{border-color:var(--blue); color:var(--blue);}
+  .steps .st.cur{background:#173a5e; border-color:var(--blue); color:#fff;}
+  .jw-desc{margin:0 0 14px;}
+  .jw-desc .jw-title{font-size:15px; color:#e8eef5; margin-bottom:6px;}
+  .jw-desc .jw-note{color:var(--dim); font-size:13px; line-height:1.8;}
+  .jw-desc .jw-note code{color:var(--cyan); background:var(--panel2); padding:1px 5px;
+    border-radius:4px; font-size:12px;}
+  .msgs{display:flex; flex-direction:column; gap:10px;}
+  .msg{border:1px solid var(--line); border-left:3px solid var(--mc,var(--gray));
+    background:var(--panel2); border-radius:8px; padding:9px 12px;}
+  .msg .mh{display:flex; gap:8px; align-items:center; margin-bottom:5px;}
+  .msg .role{font-size:11px; font-weight:bold; color:var(--mc,var(--gray));
+    font-family:var(--mono); letter-spacing:.5px;}
+  .msg .idx{font-size:10px; color:var(--faint);}
+  .msg .new{font-size:10px; color:#0b0f14; background:var(--green); border-radius:4px;
+    padding:1px 6px; font-weight:bold;}
+  .msg .body{font-family:var(--mono); font-size:12px; white-space:pre-wrap;
+    word-break:break-all; color:var(--txt); line-height:1.65; max-height:190px; overflow:auto;}
+  .msg .body .cut{color:var(--faint);}
+  .jw-ctrl{display:flex; gap:10px; align-items:center; margin-top:16px;}
+  .jw-prog{color:var(--dim); font-size:12px;}
+
+  /* ---------- Tab3 RAG ---------- */
+  .rtree{display:flex; flex-direction:column; align-items:center; gap:0;}
+  .rbox{background:var(--panel2); border:1px solid var(--line2); border-radius:10px;
+    padding:10px 18px; text-align:center;}
+  .rbox .rt{font-size:14px; font-weight:bold;}
+  .rbox .rd{font-size:12px; color:var(--dim); margin-top:4px; line-height:1.7;}
+  .rbox .rd code{color:var(--cyan);}
+  .varrow{color:var(--faint); font-size:16px; padding:4px 0; text-align:center; line-height:1;}
+  .strats{display:flex; gap:12px; flex-wrap:wrap; justify-content:center; margin:10px 0;}
+  .strat{width:250px; background:var(--panel2); border:1px solid var(--line2);
+    border-radius:10px; padding:12px 14px; text-align:left;}
+  .strat .sname{font-size:14px; font-weight:bold; color:var(--sc,var(--blue));}
+  .strat .sroute{font-family:var(--mono); font-size:11px; color:var(--faint); margin:3px 0 7px;}
+  .strat .sdesc{font-size:12px; color:var(--dim); line-height:1.75;}
+  .strat .sdesc code{color:var(--cyan); font-size:11px;}
+  .twocol{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:18px;}
+  @media (max-width:900px){ .twocol{grid-template-columns:1fr;} }
+  .budget{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;}
+  .budget .b{background:var(--panel3); border:1px solid var(--line2); border-radius:8px;
+    padding:7px 12px; font-size:12px; color:var(--dim);}
+  .budget .b b{color:var(--orange); font-family:var(--mono);}
+  table.eval{width:100%; border-collapse:collapse; margin-top:10px; font-size:13px;}
+  table.eval th,table.eval td{border:1px solid var(--line); padding:8px 12px; text-align:center;}
+  table.eval th{background:var(--panel3); color:var(--dim); font-weight:normal; font-size:12px;}
+  table.eval td:first-child{text-align:left; color:var(--txt);}
+  table.eval .best{color:var(--green); font-weight:bold;}
+  table.eval tr:hover td{background:var(--panel2);}
+  .tiers{display:flex; gap:12px; flex-wrap:wrap; margin-top:10px;}
+  .tier{flex:1; min-width:200px; border-radius:10px; padding:11px 14px; font-size:12.5px;
+    line-height:1.7; border:1px solid var(--line2); background:var(--panel2);}
+  .tier b{display:block; font-size:13.5px; margin-bottom:3px;}
+  .tier.t1{border-left:3px solid var(--green);} .tier.t1 b{color:var(--green);}
+  .tier.t2{border-left:3px solid var(--yellow);} .tier.t2 b{color:var(--yellow);}
+  .tier.t3{border-left:3px solid var(--red);} .tier.t3 b{color:var(--red);}
+  .formula{background:var(--panel2); border:1px solid var(--line); border-radius:8px;
+    padding:10px 14px; font-family:var(--mono); font-size:12px; color:var(--dim);
+    margin-top:10px; line-height:1.9;}
+  .formula b{color:var(--cyan); font-weight:normal;}
+
+  /* ---------- Tab4 轨迹回放 ---------- */
+  .rp-chain{display:flex; flex-wrap:wrap; row-gap:10px; align-items:stretch; margin-bottom:14px;}
+  .rp-main{display:grid; grid-template-columns:minmax(300px,5fr) minmax(320px,7fr); gap:16px;}
+  @media (max-width:900px){ .rp-main{grid-template-columns:1fr;} }
+  .rp-cur .turn-q{background:var(--panel2); border:1px solid var(--line); border-radius:8px;
+    padding:8px 12px; margin-bottom:10px; font-size:13px;}
+  .rp-cur .turn-q .who{color:var(--blue); margin-right:8px; font-size:12px;}
+  .rp-cur .turn-q .mode{color:var(--purple); font-size:11px; margin-left:8px;}
+  .ev-meta{color:var(--dim); font-size:12.5px; line-height:2;}
+  .ev-meta b{color:#e8eef5; font-weight:normal;}
+  .ev-meta .mnode{color:var(--blue);}
+  .rp-json{background:#0d1117; border:1px solid var(--line); border-radius:8px;
+    padding:12px 14px; font-family:var(--mono); font-size:12px; line-height:1.7;
+    white-space:pre-wrap; word-break:break-all; max-height:420px; overflow:auto; color:#a5d6ff;}
+  .rp-timeline{margin-top:18px; background:var(--panel); border:1px solid var(--line);
+    border-radius:10px; padding:14px 16px 10px;}
+  .tl-turns{display:flex; gap:18px; overflow-x:auto; padding-bottom:6px;}
+  .tl-turn{flex:none;}
+  .tl-turn .tq{font-size:11px; color:var(--faint); margin-bottom:6px; max-width:230px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .tl-turn .tq.now{color:var(--blue);}
+  .tl-dots{display:flex; gap:7px; align-items:center;}
+  .tl-dot{width:13px; height:13px; border-radius:50%; border:2px solid var(--line2);
+    background:var(--panel2); cursor:pointer; padding:0;}
+  .tl-dot.past{background:var(--blue); border-color:var(--blue);}
+  .tl-dot.cur{background:var(--orange); border-color:var(--orange);
+    box-shadow:0 0 8px var(--orange); transform:scale(1.25);}
+  .rp-ctrl{display:flex; gap:8px; align-items:center; margin-top:10px; flex-wrap:wrap;}
+  .rp-stat{color:var(--dim); font-size:12px; margin-left:auto;}
+
+  footer{max-width:1280px; margin:0 auto; padding:10px 20px 34px; color:var(--faint);
+    font-size:12px; line-height:1.9;}
+  footer code{color:var(--cyan);}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="head-in">
+    <div class="brand">
+      <h1>⚖️ <b>小律</b> · 法律咨询Agent全链路浏览器</h1>
+      <span class="sub">单文件 · 零依赖 · 深色主题 · 轨迹来自离线 mock 真实运行</span>
+    </div>
+    <div class="tabs">
+      <button class="on" data-view="pipeline"><span class="k">Tab1</span>主链路</button>
+      <button data-view="journey"><span class="k">Tab2</span>一次消息的旅程</button>
+      <button data-view="rag"><span class="k">Tab3</span>RAG检索栈</button>
+      <button data-view="replay"><span class="k">Tab4</span>轨迹回放</button>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- ============ Tab1 主链路 ============ -->
+  <section class="view on" id="view-pipeline">
+    <p class="hint">一次 <b>chat(user_input)</b> 的完整流水线（app/agent/chat.py · LegalAgent）。
+      <b>点击任意节点</b>查看负责文件、关键函数、输入→输出示例与设计动机。</p>
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+      <label class="switch" id="multiSwitch"><span class="knob"></span>
+        Multi-Agent 模式（③ 前插入路由节点 → 四子Agent白名单）</label>
+      <span class="hint" style="margin:0;">ReAct 步数上限 max_react_steps = 6 · 会话压缩阈值 history_threshold = 12</span>
+    </div>
+    <div class="flow" id="flowMain"></div>
+    <div class="legend">
+      <span><i style="background:var(--gray)"></i>入口</span>
+      <span><i style="background:var(--red)"></i>安全红线（规则短路）</span>
+      <span><i style="background:var(--yellow)"></i>上下文组装</span>
+      <span><i style="background:var(--purple)"></i>Multi-Agent 路由</span>
+      <span><i style="background:var(--blue)"></i>ReAct 循环</span>
+      <span><i style="background:var(--orange)"></i>安全后处理</span>
+      <span><i style="background:var(--green)"></i>结构化提取</span>
+      <span><i style="background:var(--cyan)"></i>收尾持久化</span>
+    </div>
+
+    <div class="prin-grid">
+      <div class="card">
+        <h3><span class="tag" style="background:#173a5e;color:#cfe6ff;">原则 1</span> 骨架复用：ReAct 全系统只有一份</h3>
+        <p class="ptext">「一次对话回合的骨架」全部抽到 <code>BaseAgentRuntime</code>（app/agent/base.py）：
+          单 Agent 与 MultiAgentOrchestrator 只负责各自的中间段
+          （路由 + 委托子Agent），提取/降级/压缩/会话骨架零复制。
+          反面对照：同类项目把约 200 行代码复制粘贴两处，改一处漏一处。</p>
+      </div>
+      <div class="card">
+        <h3><span class="tag" style="background:#1c3a2a;color:#b8ecc6;">原则 2</span> tracer 是一等公民</h3>
+        <p class="ptext">Tracer 以依赖注入的方式进入 <code>LLMClient</code> 与 <code>ToolRegistry</code>，
+          运行时就能看 token 成本与延迟；评估沙箱直接读 tracer（零 monkey-patch、零全局状态）。
+          事件类型：<code>llm_call</code> / <code>tool_call</code> / <code>route</code> /
+          <code>redflag_shortcut</code> / <code>injection_blocked</code> / <code>fake_citations_removed</code> / <code>nli_check</code>。</p>
+      </div>
+      <div class="card">
+        <h3><span class="tag" style="background:#3a2a1c;color:#f5d3b8;">原则 3</span> Settings 可多实例</h3>
+        <p class="ptext">评估沙箱用 <code>Settings(memory_enabled=False, mock_mode=True)</code>
+          构造独立配置，不改全局单例 → 无状态泄漏。
+          <code>mock_mode</code> 显式化：MOCK_MODE=1 或未配 API Key 自动进离线模式，
+          MockLLMClient 与真实客户端同接口、会读对话历史——离线轨迹与真实模式结构一致。</p>
+      </div>
+      <div class="card">
+        <h3><span class="tag" style="background:#33301c;color:#f0e2b0;">原则 4</span> 原子写 + 损坏降级</h3>
+        <p class="ptext">会话持久化先写 <code>.tmp</code> 再 <code>os.replace</code>，
+          崩溃不会留下半截文件；<code>load_session()</code> 对损坏/版本不符返回 None 视为新会话。
+          LLM 调用同理：只有瞬态错误（429/5xx/超时）指数退避重试，
+          4xx 参数错误立刻失败，主模型失败按 <code>fallback_models</code> 链式转移。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Tab2 一次消息的旅程 ============ -->
+  <section class="view" id="view-journey">
+    <p class="hint">真实案例：<b>「朋友借钱拖着不还电话也不接」</b>——逐步展示每一步之后
+      <b>raw_messages / messages 数组</b>的实际内容变化，以及最终 LegalResponse。
+      数据取自离线 mock 真实运行的会话文件（session_journey.json）。</p>
+    <div class="jw-head">
+      <div class="jw-q"><span class="who">👤 用户</span>朋友借钱拖着不还电话也不接</div>
+      <span class="chip">工具: load_skill</span>
+      <span class="chip">技能: loan-recovery 民间借贷维权</span>
+      <span class="chip">LLM 调用: 2 次</span>
+    </div>
+    <div class="steps" id="jwSteps"></div>
+    <div class="card jw-desc">
+      <div class="jw-title" id="jwTitle"></div>
+      <div class="jw-note" id="jwNote"></div>
+    </div>
+    <div class="msgs" id="jwMsgs"></div>
+    <div class="jw-ctrl">
+      <button class="btn" id="jwPrev">◀ 上一步</button>
+      <button class="btn pri" id="jwNext">下一步 ▶</button>
+      <span class="jw-prog" id="jwProg"></span>
+    </div>
+
+    <div class="twocol" style="margin-top:20px;">
+      <div class="card">
+        <h3>LegalResponse 字段语义（app/schemas/response.py）</h3>
+        <table class="eval">
+          <tr><th>字段</th><th>取值空间</th><th>本例</th></tr>
+          <tr><td>intent</td><td style="text-align:left;">greeting / case_query / law_article / precedent / procedure / emergency / other</td><td>procedure</td></tr>
+          <tr><td>confidence</td><td>0.0 ~ 1.0</td><td>0.85</td></tr>
+          <tr><td>urgency</td><td style="text-align:left;">routine 常规 / attention 留意 / urgent 时效·证据紧迫 / emergency 人身威胁</td><td>routine</td></tr>
+          <tr><td>requires_human</td><td>确定性布尔：转人工律师 / 法律援助</td><td>false</td></tr>
+          <tr><td>follow_up_question</td><td>可空字符串：缺关键信息时的一句追问</td><td>null</td></tr>
+        </table>
+        <p class="hint" style="margin-top:10px;">mock 提取器的判定规则可作语义参照：出现
+          <b>报警/110/保护令</b> → intent=emergency 且 requires_human=true；
+          出现 <b>临近时效/已过时效</b> → urgency 升为 urgent；
+          免责话术（"建议咨询律师"）本身 ≠ 转人工，只有明确行动信号才置真。</p>
+      </div>
+      <div class="card">
+        <h3>本轮为什么是这 2 次 LLM 调用</h3>
+        <div class="formula">
+<b>第 1 次</b>  react · 输入 system+user+tools(9件套) 
+         → 输出 tool_calls: load_skill(loan-recovery)<br>
+<b>第 2 次</b>  react · 输入 追加 assistant(tool_calls)+tool观察 
+         → 输出 final 纯文本，循环结束<br>
+（extract 提取在 mock 模式直接查表构造，不计 llm_call；
+  真实模式为第 3 次，purpose="extract"）
+        </div>
+        <p class="hint" style="margin-top:10px;">工具九件套：query_case / update_case_note /
+          query_law_article / search_precedents / calc_limitation / query_court /
+          search_knowledge / recall_user_memory / load_skill
+          （app/agent/tools/registry.py build_tool_registry）。
+          registry.execute 前做必填参数与类型校验，工具抛异常打包成
+          <code>{"error": ...}</code> 观察，单工具故障不炸整轮会话。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Tab3 RAG检索栈 ============ -->
+  <section class="view" id="view-rag">
+    <p class="hint">Phase 2 自适应检索栈（app/agent/rag/adaptive.py · AdaptiveRetriever）。
+      决策树自上而下：策略路由 → 改写 → 粗召回 → 精排 → Self-RAG 门控 → 三档置信。</p>
+
+    <div class="rtree">
+      <div class="rbox">
+        <div class="rt">query</div>
+        <div class="rd">用户原话，例如「第1062条说的是什么」/「我跟他说要还钱他一直拖着」</div>
+      </div>
+      <div class="varrow">▼</div>
+      <div class="rbox" style="border-color:var(--purple);">
+        <div class="rt" style="color:var(--purple);">route() 启发式策略路由（零成本，不走LLM）</div>
+        <div class="rd">条号正则 <code>_ARTICLE_RE</code> → direct ｜ 原理词 <code>_STEPBACK_RE</code> → stepback<br>
+          多子问 <code>_MULTI_RE</code> 且长度≥10 → fusion ｜ 零法律术语命中（<code>_LEGAL_TERMS</code>）→ hyde ｜ 其余 → direct</div>
+      </div>
+      <div class="varrow">▼</div>
+      <div class="strats">
+        <div class="strat" style="--sc:var(--blue);">
+          <div class="sname">direct 直查</div>
+          <div class="sroute">命中: 第X条 / 含法律术语</div>
+          <div class="sdesc">条号类问题原文最准，不做改写直接召回。<br>典型: 「民法典第188条」</div>
+        </div>
+        <div class="strat" style="--sc:var(--green);">
+          <div class="sname">hyde 假设文档</div>
+          <div class="sroute">命中: 口语零术语</div>
+          <div class="sdesc">先假设一篇"理想答案文档"再去检索，对齐文档语体。<br>离线: <code>offline_hyde()</code> 查表模板；真实模式走 LLM <code>purpose="hyde"</code></div>
+        </div>
+        <div class="strat" style="--sc:var(--orange);">
+          <div class="sname">fusion 多子问拆解</div>
+          <div class="sroute">命中: 和/还有/以及 + len≥10</div>
+          <div class="sdesc">拆成 2~3 个子方面分别召回再融合。<br>离线: <code>offline_fusion()</code>；真实模式 <code>purpose="fusion_expand"</code></div>
+        </div>
+        <div class="strat" style="--sc:var(--purple);">
+          <div class="sname">stepback 退一步</div>
+          <div class="sroute">命中: 为什么/什么原理/怎么理解</div>
+          <div class="sdesc">先退到一般规定层面（如「诉讼时效制度的一般规定」）再检索。<br>离线: <code>offline_stepback()</code></div>
+        </div>
+      </div>
+      <div class="varrow">▼</div>
+      <div class="rbox" style="border-color:var(--blue);">
+        <div class="rt" style="color:var(--blue);">粗召回 top-20（RECALL_K=20）</div>
+        <div class="rd">dense 余弦 + BM25 词法 <b>双路</b> → <code>rrf_merge()</code> RRF 融合（RRF_K=60）<br>
+          门控 <code>DENSE_GATE=0.55</code>：dense top1 分数 ≥ 0.55 → 语义置信高，关闭 BM25 并票，防词法路稀释排名</div>
+      </div>
+      <div class="varrow">▼</div>
+      <div class="rbox" style="border-color:var(--cyan);">
+        <div class="rt" style="color:var(--cyan);">Rerank 精排 top-3</div>
+        <div class="rd">规则版 <code>rerank_score()</code>：条号精确命中 +100 &gt; 正文 bigram 重叠（封顶 ×2.0 防长文偏置）&gt; 向量分<br>
+          引用图谱邻居提名：图邻居须超末位 + <code>GRAPH_BONUS_MARGIN=5.0</code> 分才可顶替第 3 位 —— 图只给机会，精排终裁</div>
+      </div>
+      <div class="varrow">▼</div>
+      <div class="rbox" style="border-color:var(--orange);">
+        <div class="rt" style="color:var(--orange);">Self-RAG 相关性门</div>
+        <div class="rd"><code>relevance()</code> = query 词在 top1 正文的覆盖率，门槛 <code>GATE_THRESHOLD=0.12</code><br>
+          不达标 → 换 fallback 策略（direct↔hyde / fusion·stepback→direct）<b>重试一次</b>；仍不达标 → 显式承认失败，不硬答</div>
+        <div class="budget">
+          <span class="b">策略预算 ≤ <b>2</b>（MAX_STRATEGIES）</span>
+          <span class="b">检索预算 ≤ <b>6</b>（MAX_SEARCHES）</span>
+          <span class="b">LLM预算 ≤ <b>4</b>（MAX_LLM_CALLS）</span>
+        </div>
+      </div>
+      <div class="varrow">▼</div>
+      <div class="tiers">
+        <div class="tier t1"><b>confident（confidence ≥ 0.5）</b>正常返回 top-3 片段与来源，工具结果直接可用。</div>
+        <div class="tier t2"><b>low（0.25 ≤ confidence &lt; 0.5）</b>仍返回，但附注「检索依据不够充分，以下片段仅供参考，请谨慎采用」。</div>
+        <div class="tier t3"><b>refuse（confidence &lt; 0.25 或 relevant=False）</b>清空 chunks，返回「未找到充分依据，建议转人工律师或换种问法」—— 检索层承认失败比幻觉安全。</div>
+      </div>
+      <div class="formula">
+        置信度校准 <b>calibrate()</b>：confidence = relevance(top1) × (0.5 + 排序优势margin)，<br>
+        margin = clamp((s1 − s2) / max(|s1|,1), 0, 1) —— <b>top1 领先 top2 越多越可信</b>
+      </div>
+    </div>
+
+    <div class="twocol">
+      <div class="card">
+        <h3>实测对比（12 条 groundtruth 命中率）</h3>
+        <table class="eval">
+          <tr><th>检索栈叠加</th><th>离线 hash 向量</th><th>真实 embedding</th></tr>
+          <tr><td>baseline 单路直查</td><td>0.33</td><td>0.92</td></tr>
+          <tr><td>+ Rerank 精排</td><td>0.58</td><td>1.00</td></tr>
+          <tr><td>+ 混合检索（dense+BM25 RRF）</td><td class="best">0.83</td><td class="best">1.00</td></tr>
+          <tr><td>+ 自适应策略（路由/改写/Self-RAG）</td><td class="best">0.83</td><td class="best">1.00</td></tr>
+        </table>
+        <p class="hint" style="margin-top:10px;">解读：离线 hash 向量噪声大，混合检索把 0.33 拉到 0.83（BM25 补词法精度）；
+          真实 embedding 语义已够强，自适应栈的价值是<b>守住下限</b>（拒答/降级）而非刷上限。</p>
+      </div>
+      <div class="card">
+        <h3>工程要点</h3>
+        <div class="formula">
+<b>组合不改写</b>   AdaptiveRetriever 包住 KnowledgeRetriever，
+           不碰 .search() 契约 —— search_knowledge 工具零感知<br>
+<b>离线确定性</b>   client=None 时四个改写全走查表/模板，
+           测试可精确断言；传入 client 才走 LLM purpose<br>
+<b>预算硬约束</b>   自适应 ≠ 烧钱放大器：策略/检索/LLM 三道上限<br>
+<b>RRF 免调权</b>   score(d)=Σ 1/(k+rank)，纯代码融合多路排名<br>
+<b>拒答三档</b>   检索层显式承认失败（refuse），
+           把"知识库没有"如实传达给上层，而不是硬编
+        </div>
+      </div>
+      <div class="card">
+        <h3>涉及文件</h3>
+        <div class="formula">
+app/agent/rag/adaptive.py        自适应主类 / 路由 / RRF / 精排 / 门控<br>
+app/agent/rag/retriever.py       KnowledgeRetriever 稠密召回（可换backend）<br>
+app/agent/rag/bm25.py            BM25 词法路（get_bm25 单例）<br>
+app/agent/rag/embedder.py        Embedder（hash离线 / 智谱·OpenAI真实）<br>
+app/agent/rag/chunker.py         语料切块（markdown 结构感知）<br>
+app/agent/rag/citation_graph.py  案例↔法条引用图谱（邻居提名）<br>
+app/agent/rag/backends/          local(手写余弦+JSON) / chroma 双后端<br>
+app/agent/tools/knowledge.py     search_knowledge 工具（三档置信出口）
+        </div>
+        <p class="hint" style="margin-top:10px;">sanitize_tool_output（app/agent/safety/）
+          在检索结果进入模型上下文前包裹数据边界并剥离疑似注入内容——
+          工具输出是"数据"，不是"指令"。</p>
+      </div>
+    </div>
+  </section>
+  <section class="view" id="view-replay">
+    <p class="hint">逐条回放 <b>离线 mock 真实运行</b>捕获的 tracer 事件（app/agent/tracer.py 记录，
+      已裁剪超长 raw 字段）。当前事件会<b>高亮上方链路中对应的节点</b>，右侧展示事件 JSON 详情。
+      注：mock 模式下<b>结构化提取不产生 tracer 事件</b>，⑤ 节点由标了「语义演示」的
+      extract 事件点亮（结果取自真实 LegalResponse），也可在 Tab2 旅程第 6 步联动查看。</p>
+    <div class="card rp-chain" id="rpChain"></div>
+    <div class="rp-main">
+      <div class="card rp-cur">
+        <h3>当前事件</h3>
+        <div id="rpInfo"></div>
+      </div>
+      <div class="card">
+        <h3>事件详情（裁剪后 JSON）</h3>
+        <div class="rp-json" id="rpJson"></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px;">
+      <h3>运行摘要（由内嵌 15 条真实事件实时聚合，口径同 tracer.summary()；1 条语义演示事件不计入）</h3>
+      <table class="eval" id="rpSummary"></table>
+    </div>
+    <div class="rp-timeline">
+      <div class="tl-turns" id="tlTurns"></div>
+      <div class="rp-ctrl">
+        <button class="btn" id="rpReset">⏮ 重置</button>
+        <button class="btn" id="rpPrev">◀ 步退</button>
+        <button class="btn pri" id="rpPlay">▶ 播放</button>
+        <button class="btn" id="rpNext">步进 ▶|</button>
+        <span class="hint" style="margin:0;">事件 → 节点映射：redflag_shortcut→① ｜ route→路由 ｜
+          tool_call 与 llm_call(react)→③ ｜ nli_check/injection_blocked→④ ｜
+          llm_call(extract·语义演示)→⑤</span>
+        <span class="rp-stat" id="rpStat"></span>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<div id="mask"></div>
+<div id="modal">
+  <button class="mclose" id="mClose">✕</button>
+  <h2 id="mTitle"></h2>
+  <div class="mfile" id="mFile"></div>
+  <div id="mBody"></div>
+</div>
+
+<footer>
+  数据来源：单文件页面内嵌的链路结构与函数名核对自仓库源码
+  （app/agent/base.py · chat.py · llm/client.py · rag/adaptive.py · tools/registry.py · multi_agent/router.py）；
+  Tab4 事件流捕获自三次离线 mock 运行（python main.py --mock，Tracer 注入 jsonl_path）——
+  冷启动运行 7 条 + Multi-Agent 模式 4 条 + search_knowledge 完整安全链路 4 条，共 <b>15 条真实事件</b>；
+  另有 1 条标注「语义演示」的 extract 事件（mock 模式下结构化提取不产生 tracer 事件，
+  其结果取自本轮真实 LegalResponse），合计 16 条回放条目。
+  冷启动二次运行恢复了会话历史与长期档案（prompt_tokens 266→898），事件结构完全一致。
+  工具观察结果取自同轮会话文件中的真实 tool 消息；Tab2 联动说明：
+  旅程走到第 5/6 步时会点亮链路上的 ④安全后处理 / ⑤结构化提取 节点。
+</footer>
+
+<script>
+"use strict";
+/* ================================================================
+   数据区：节点定义 / 真实轨迹 / 旅程步骤
+   ================================================================ */
+
+/* ---------- Tab1/Tab4 共用：链路节点 ---------- */
+const NODES = [
+  { id:"input", no:"IN", title:"用户输入", color:"var(--gray)",
+    file:"app/agent/chat.py · LegalAgent.chat()",
+    io:"「查一下案件 LS-2026-001 的进展」字符串进入 chat()；先过红旗检测，未命中则 append 进 raw_messages。",
+    why:"chat() 只保留约 15 行主流程骨架：每个阶段一个函数、顺序即架构；会话/压缩/提取/持久化全部在基类 BaseAgentRuntime，多Agent模式零复制。" },
+  { id:"redflag", no:"①", title:"红旗短路", color:"var(--red)",
+    file:"app/agent/safety/redflag.py · app/agent/base.py handle_redflag()",
+    io:"输入「前男友威胁要曝光我的照片」→ detect_red_flags() 正则命中 [\"威胁恐吓\"] → emergency_reply() 直接构造 LegalResponse(intent=emergency, confidence=1.0, requires_human=true, urgency=emergency)，<b>零 LLM 调用</b>返回。",
+    why:"人身安全不能排队等 LLM：规则短路零延迟、零漏报成本可控。规则层宁可误报不可漏报——「上次被打」也命中，追问澄清即可，漏报的代价是真实的人身伤害。三类红线有优先级：人身安全 > 证据灭失 > 时效临界。" },
+  { id:"assemble", no:"②", title:"上下文组装", color:"var(--yellow)",
+    file:"app/agent/base.py render_messages()",
+    io:"每次 LLM 调用前组装：[system 主提示+技能目录] + memory_manager.build_prompt_sections()（长期档案→短期事实两条 system）+ 历史摘要（此前对话摘要：…）+ raw_messages。",
+    why:"记忆与摘要以独立 system 段注入而非拼进 user 消息——指令与数据分离，模型不会把用户的话当成指令（也是 mock 客户端可精确测消息结构的前提）。技能目录由 SkillManager.build_catalog_prompt() 动态拼进主提示。" },
+  { id:"router", no:"R", title:"意图路由", multi:true, color:"var(--purple)",
+    file:"app/multi_agent/router.py Router.route() · orchestrator.py",
+    io:"LLM 分类（temperature=0, max_tokens=10）→ 受控词表包含匹配 + 默认兜底 contract → tracer.log_route(\"合同债务助理\")。四子Agent：family 婚姻家事 / contract 合同债务 / tort 侵权赔偿 / emergency 紧急通道（tools=frozenset() 零工具纯指引）。",
+    why:"分类任务要确定性：temperature=0 + max_tokens=10 + \"包含匹配\"解析，模型多吐一个字也不会崩。各子Agent用 registry.subset(白名单) 取工具视图——全量只注册一次，权限收敛在编排层。" },
+  { id:"react", no:"③", title:"ReAct 循环", color:"var(--blue)",
+    file:"app/agent/base.py react() · app/agent/tools/registry.py execute()",
+    io:"最多 6 步（max_react_steps）：client.chat(messages, tools) → 有 tool_calls？→ registry.execute()（必填参数/类型校验，异常打包成观察不炸会话）→ role:\"tool\" 回填 → 再问 LLM。步数用尽后禁用工具再给一次收尾机会，防「截断在半路」。",
+    why:"全系统唯一一份 ReAct 实现：单Agent与四个子Agent共用（SubAgent 也复用基类）。工具观察永远以 tool 消息回填协议位，而不是拼进文本——真实与 mock 轨迹结构一致，评估沙箱零补丁。" },
+  { id:"safety", no:"④", title:"安全后处理", color:"var(--orange)",
+    file:"app/agent/base.py safety_post_process()",
+    io:"用过 search_knowledge 才触发：scan_output() 注入扫描（命中→替换文案+转人工，tracer 记 injection_blocked）→ validate_citations() 引用校验（编造条号剔除，记 fake_citations_removed）→ append_sources_if_missing() → NLI 句级核验 verify_reply_support()（supported_ratio<0.5 且 checked≥2 → 转人工，记 nli_check / nli_low_support）。",
+    why:"三道防线各管一类风险且只在相关工具被调用时启用（零成本旁路）。NLI 只标记转人工不改写文本——防核验器自身的错误污染本来正确的答案；真实模式可升级 cross-encoder，接口不变。" },
+  { id:"extract", no:"⑤", title:"结构化提取", color:"var(--green)",
+    file:"app/llm/client.py parse_structured() · app/schemas/response.py LegalResponse",
+    io:"EXTRACT_SYSTEM（base.py 常量：reply 用原文不改写；报警/保护令必须 urgency=emergency 且 requires_human=true）+ final 文本 → LegalResponse{intent, confidence, reply, requires_human, urgency, follow_up_question}。response_format 失败自动降级为 prompt 引导 JSON + 去围栏 + model_validate_json 本地校验。",
+    why:"上游平台（工单/调度/风控）只消费结构化字段，不解析自然语言。枚举受控（IntentType 7 值 / UrgencyLevel 4 档）+ 确定性布尔，schema 校验失败立刻报错而不是带着脏数据往下走。" },
+  { id:"finish", no:"⑥", title:"收尾持久化", color:"var(--cyan)",
+    file:"app/agent/base.py finish_turn() · app/agent/storage.py save_session()",
+    io:"append 最终 LegalResponse JSON 进 raw_messages → memory_manager.update_short_term(raw_messages[-6:]) 提炼短期事实 → maybe_compress()（超过 12 条才压缩，保留最近 4 条，且不从 tool 消息中间切开防孤儿协议位）→ save_session() 原子写（先写 .tmp 再 os.replace）。close() 时 consolidate_to_long_term 巩固长期记忆。",
+    why:"原子写保证崩溃时不会留下半截会话；load 对损坏/版本不符的文件返回 None 视为新会话——用户体验优先于报错。压缩的 12/4 是简化策略（按条数），生产应按 token 预算。" },
+];
+
+/* ---------- Tab4：真实轨迹（捕获自离线 mock 运行的 tracer 输出，裁剪版） ---------- */
+const REPLAY = [
+  { mode:"single", q:"查一下案件 LS-2026-001 的进展", events:[
+    { ts:0.007, type:"llm_call", purpose:"react", model:"mock",
+      prompt_tokens:266, completion_tokens:0, latency_ms:1.0 },
+    { ts:0.007, type:"tool_call", tool:"query_case", ok:true, latency_ms:0.0,
+      arguments:{ case_id:"LS-2026-001" },
+      output:{ success:true, case:{ case_id:"LS-2026-001", type:"民间借贷纠纷",
+        court:"杭州市西湖区人民法院", stage:"已立案",
+        next_action:"2026-10-12 举证期限届满", claim:80000, counterpart:"王某", lawyer:"未委托" } } },
+    { ts:0.008, type:"llm_call", purpose:"react", model:"mock",
+      prompt_tokens:425, completion_tokens:49, latency_ms:1.0 }
+  ]},
+  { mode:"single", q:"2023年6月借的钱诉讼时效还剩多久", events:[
+    { ts:0.011, type:"llm_call", purpose:"react", model:"mock",
+      prompt_tokens:541, completion_tokens:0, latency_ms:1.0 },
+    { ts:0.013, type:"tool_call", tool:"calc_limitation", ok:true, latency_ms:1.4,
+      arguments:{ case_type:"一般民事", start_date:"2023-06-01" },
+      output:{ success:true, deadline:"2026-05-31", days_left:-123,
+        status:"已过时效", urgency:"urgent", period_desc:"3年",
+        basis:"民法典第188条", warning:true } },
+    { ts:0.013, type:"llm_call", purpose:"react", model:"mock",
+      prompt_tokens:697, completion_tokens:65, latency_ms:1.0 }
+  ]},
+  { mode:"single", q:"交通事故责任的法条是怎么规定的", events:[
+    { ts:0.005, type:"llm_call", purpose:"react", model:"mock",
+      prompt_tokens:265, completion_tokens:0, latency_ms:1.0 },
+    { ts:0.017, type:"tool_call", tool:"search_knowledge", ok:true, latency_ms:11.2,
+      arguments:{ query:"交通事故责任的法条是怎么规定的" },
+      output:{ success:true, query:"交通事故责任的法条是怎么规定的",
+        strategy:"direct", confidence:0.287, relevant:true,
+        note:"检索依据不够充分，以下片段仅供参考，请谨慎采用",
+        chunks:[
+          { source:"指导案例选编#指导案例24号：荣宝英诉王阳、永诚财产保险股份有限公司江阴支公司机动车交通事故责任纠纷案" },
+          { source:"民法典-侵权责任#机动车交通事故责任（第1208-1215条）" },
+          { source:"指导案例选编#指导案例170号：饶国礼诉某物资供应站等房屋租赁合同纠纷案" } ] },
+      note:"confidence=0.287 命中三档置信的 low 档：片段照常返回但附「仅供参考」警示" },
+    { ts:0.017, type:"llm_call", purpose:"react", model:"mock",
+      prompt_tokens:1410, completion_tokens:142, latency_ms:1.0 },
+    { ts:0.02, type:"nli_check", supported_ratio:0.9, checked:10,
+      unsupported:["以上信息仅供参考，不构成法律意见，具体请以律师意见为准"],
+      note:"句级核验：10 句中 9 句有证据支持；免责话术被如实标记为无证据支持，ratio≥0.5 不强制转人工" },
+    { ts:0.021, type:"llm_call", purpose:"extract", demo:true,
+      note:"mock 模式下结构化提取不产生 tracer 事件，本条为语义演示 —— 真实模式为 purpose=\"extract\" 的 LLM 调用，结果取自本轮真实 LegalResponse",
+      result:{ intent:"precedent", confidence:0.85, requires_human:false,
+        urgency:"routine", follow_up_question:null } }
+  ]},
+  { mode:"single", q:"前男友威胁要曝光我的照片", events:[
+    { ts:0.015, type:"redflag_shortcut", flags:["威胁恐吓"] }
+  ]},
+  { mode:"multi", q:"查一下案件 LS-2026-001 的进展", events:[
+    { ts:0.003, type:"llm_call", purpose:"react", model:"mock",
+      prompt_tokens:81, completion_tokens:4, latency_ms:1.0,
+      note:"路由分类 LLM（temperature=0, max_tokens=10）→ contract" },
+    { ts:0.004, type:"route", agent:"合同债务助理" },
+    { ts:0.005, type:"tool_call", tool:"query_case", ok:true, latency_ms:0.0,
+      arguments:{ case_id:"LS-2026-001" },
+      note:"query_case 在子Agent白名单内，registry.subset() 视图执行" },
+    { ts:0.006, type:"llm_call", purpose:"react", model:"mock",
+      prompt_tokens:360, completion_tokens:49, latency_ms:1.0 }
+  ]},
+];
+
+/* ---------- Tab2：一次消息的旅程（真实会话数据） ---------- */
+const SKILL_OBS = '{"success": true, "skill_name": "loan-recovery", "instructions": ' +
+  '"# 民间借贷维权流程（loan-recovery）\\n\\n## 第1步：证据盘点（最先执行）\\n借条/欠条、转账记录、催款聊天记录三件套缺什么先补什么……对应红线：证据灭失。\\n\\n## 第2步：时效核查\\n调用 calc_limitation(case_type=\\"一般民事\\", start_date=...) 精确计算；临近时效（≤90天）显著警示。\\n\\n## 第3步：利率核算\\n年利率超过合同成立时一年期LPR四倍的部分不受保护（可引用《民法典·合同编》第六百八十条）。\\n\\n## 第4步：行动路径建议\\n金额小 → 小额诉讼程序一审终审；金额较大 → 普通程序；对方可能转移财产 → 可申请财产保全。……"}';
+
+const JOURNEY = [
+  { title:"第 0 步 · 用户输入到达", msgs:[],
+    note:"<code>LegalAgent.chat(\"朋友借钱拖着不还电话也不接\")</code> 被调用。第一站是红旗检测 " +
+         "<code>handle_redflag()</code> → <code>detect_red_flags()</code>：命中 0 条红线" +
+         "（无家暴/威胁/跟踪/证据灭失/时效临界表述）→ 放行进入主管线，用户消息 append 进 <code>raw_messages</code>。" },
+  { title:"第 1 步 · ② 上下文组装 render_messages()",
+    note:"<code>render_messages(system)</code> 组装本轮 LLM 看到的完整输入：" +
+         "<b>system 主提示</b>（app/prompts/consultant.py SYSTEM_PROMPT：角色定位/职业边界硬约束/回复规范）" +
+         "+ <b>技能目录</b>（SkillManager.build_catalog_prompt()：divorce / labor-arb / loan-recovery）" +
+         "+ 长期档案（首轮为空）+ 短期事实（空）+ 历史摘要（无）+ <b>raw_messages</b>。" },
+  { title:"第 2 步 · ③ ReAct 第 1 步：LLM 决定调工具",
+    note:"<code>client.chat(messages, tools)</code> 返回 <b>tool_calls</b> 而非文本：" +
+         "<code>load_skill(skill_name=\"loan-recovery\")</code>。「借钱」命中技能场景，" +
+         "模型选择先加载维权流程技能。assistant 消息（含 tool_calls）append 进 raw_messages。" },
+  { title:"第 3 步 · ③ registry.execute() → 工具观察回填",
+    note:"<code>ToolRegistry.execute(\"load_skill\", {skill_name:\"loan-recovery\"})</code>：" +
+         "必填参数校验 → 类型校验 → 调用工具函数 → 结果 JSON 序列化，tracer 记 <code>tool_call</code> 事件" +
+         "（ok=true, latency_ms=0.2）。观察以 <code>role:\"tool\"</code> 消息回填协议位。" },
+  { title:"第 4 步 · ③ ReAct 第 2 步：LLM 给出最终文本",
+    note:"带上工具观察再次调用 LLM，这次返回<b>纯文本、无 tool_calls</b> → 循环结束" +
+         "（本轮共 2 次 LLM 调用）。final 文本 append 进 raw_messages。" +
+         "mock 客户端从历史工具结果里提取字段生成 final，真实模式由模型自己组织语言——轨迹结构一致。" },
+  { title:"第 5 步 · ④ 安全后处理：本轮全部旁路",
+    note:"<code>safety_post_process(final, used, outputs)</code>：used=[\"load_skill\"] " +
+         "<b>不含 search_knowledge</b> → 注入扫描 / 引用校验 / NLI 句级核验全部跳过（零成本旁路）；" +
+         "无 query_lab_report 危急值 → <code>forced_human = false</code>。" +
+         "设计动机：防线与风险源绑定，不用知识库的轮次不付安全税。" },
+  { title:"第 6 步 · ⑤ 结构化提取 → LegalResponse",
+    note:"<code>extract_structured(final)</code>：<code>client.parse_structured</code> 以 " +
+         "<code>EXTRACT_SYSTEM</code> + final 文本提取结构化字段（真实模式优先 response_format，" +
+         "失败降级 prompt 引导 JSON + 本地 schema 校验）。右侧为真实产出 JSON。" },
+  { title:"第 7 步 · ⑥ 收尾 finish_turn()",
+    note:"最终 LegalResponse JSON append 进 raw_messages → " +
+         "<code>update_short_term(raw_messages[-6:])</code> 提炼短期事实 → " +
+         "<code>maybe_compress()</code>：当前 6 条 &lt; 阈值 12 不触发压缩 → " +
+         "<code>save_session()</code> 原子写（先写 .tmp 再 os.replace）。" +
+         "CLI 退出时 <code>close()</code> 还会把本会话巩固进长期档案。" },
+];
+JOURNEY[6].resp = { intent:"procedure", confidence:0.85,
+  reply:"根据查询结果：已按民间借贷维权技能流程处理：先核对证据与时效，再按流程分步准备（详见技能步骤）。以上信息仅供参考，不构成法律意见，具体请以律师意见为准。",
+  requires_human:false, urgency:"routine", follow_up_question:null };
+
+/* 每一步对应的 raw_messages / messages 快照（真实内容，超长处截断） */
+const SYS_MSG = { role:"system",
+  content:"你是「小律」，一个互联网法律服务平台的咨询助手。\\n## 角色定位\\n- 帮用户完成：案件进展查询、法条科普性解释、类案裁判要点参考、诉讼程序/时效/管辖指引、维权路径建议。\\n- 你有工具可用：必须先调用工具获取真实数据再回答……\\n## 职业边界（硬约束，优先级最高）\\n1. 你不是律师，回复不构成法律意见……\\n2. 人身安全永远优先于法律程序……\\n3. 法条引用必须来自工具返回……\\n4. 时效问题必须调用 calc_limitation 精确计算……\\n（＋ 技能目录：divorce / labor-arb / loan-recovery）" };
+const USER_MSG = { role:"user", content:"朋友借钱拖着不还电话也不接" };
+const ASSIST_TC = { role:"assistant", content:"", tool_calls:[
+  { id:"call_1", type:"function",
+    function:{ name:"load_skill", arguments:'{"skill_name": "loan-recovery"}' } } ] };
+const TOOL_OBS = { role:"tool", tool_call_id:"call_1",
+  content:"__SKILL__" };
+const ASSIST_FINAL = { role:"assistant",
+  content:"根据查询结果：已按民间借贷维权技能流程处理：先核对证据与时效，再按流程分步准备（详见技能步骤）。以上信息仅供参考，不构成法律意见，具体请以律师意见为准。" };
+const ASSIST_RESP = { role:"assistant",
+  content:"{\"intent\":\"procedure\",\"confidence\":0.85,\"reply\":\"根据查询结果：已按民间借贷维权技能流程处理……\",\"requires_human\":false,\"urgency\":\"routine\",\"follow_up_question\":null}" };
+
+const SNAPSHOTS = [
+  [],
+  [SYS_MSG, USER_MSG],
+  [SYS_MSG, USER_MSG, ASSIST_TC],
+  [SYS_MSG, USER_MSG, ASSIST_TC, TOOL_OBS],
+  [SYS_MSG, USER_MSG, ASSIST_TC, TOOL_OBS, ASSIST_FINAL],
+  [SYS_MSG, USER_MSG, ASSIST_TC, TOOL_OBS, ASSIST_FINAL],
+  [SYS_MSG, USER_MSG, ASSIST_TC, TOOL_OBS, ASSIST_FINAL],
+  [SYS_MSG, USER_MSG, ASSIST_TC, TOOL_OBS, ASSIST_FINAL, ASSIST_RESP],
+];
+
+/* ================================================================
+   渲染区
+   ================================================================ */
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+/* ---------- Tab 切换 ---------- */
+document.querySelectorAll(".tabs button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tabs button").forEach(b => b.classList.remove("on"));
+    document.querySelectorAll("section.view").forEach(v => v.classList.remove("on"));
+    btn.classList.add("on");
+    $("#view-" + btn.dataset.view).classList.add("on");
+  });
+});
+
+/* ---------- 主链路渲染（Tab1 + Tab4 复用） ---------- */
+function chainHTML(compact){
+  let h = "";
+  NODES.forEach((n, i) => {
+    const sm = compact ? " sm" : "";
+    h += '<div class="node' + (n.multi ? " multi" : "") + sm + '" data-node="' + n.id +
+         '" style="--nc:' + n.color + '" title="点击查看详情">' +
+         '<span class="no">' + n.no + "</span>" +
+         '<span class="tt">' + n.title + "</span>" +
+         '<span class="fl">' + esc(n.file) + "</span></div>";
+    const nxt = NODES[i + 1];
+    if (nxt) h += '<div class="arr' + (nxt.multi ? " multi-arr" : "") + '">→</div>';
+  });
+  return h;
+}
+$("#flowMain").innerHTML = chainHTML(false);
+$("#rpChain").innerHTML = chainHTML(true);
+
+/* Multi-Agent 开关 */
+$("#multiSwitch").addEventListener("click", function(){
+  this.classList.toggle("on");
+  document.body.classList.toggle("multi");
+});
+
+/* ---------- 节点详情弹窗 ---------- */
+const NODE_BY_ID = {};
+NODES.forEach(n => { NODE_BY_ID[n.id] = n; });
+function openModal(id){
+  const n = NODE_BY_ID[id];
+  if (!n) return;
+  $("#mTitle").textContent = (n.multi ? "[Multi-Agent] " : "") + n.title;
+  $("#mFile").textContent = n.file;
+  $("#mBody").innerHTML =
+    '<div class="msec"><div class="lab">输入 → 输出示例</div><div class="val">' + n.io + "</div></div>" +
+    '<div class="msec"><div class="lab">为什么这么设计</div><div class="val">' + n.why + "</div></div>";
+  $("#modal").classList.add("on");
+  $("#mask").classList.add("on");
+}
+function closeModal(){ $("#modal").classList.remove("on"); $("#mask").classList.remove("on"); }
+["flowMain","rpChain"].forEach(cid => {
+  document.getElementById(cid).addEventListener("click", e => {
+    const nd = e.target.closest(".node");
+    if (nd) openModal(nd.dataset.node);
+  });
+});
+$("#mClose").addEventListener("click", closeModal);
+$("#mask").addEventListener("click", closeModal);
+
+/* ---------- Tab2 旅程 ---------- */
+function msgCard(m, idx, isNew){
+  const colors = { system:"var(--yellow)", user:"var(--blue)",
+                   assistant:"var(--green)", tool:"var(--orange)" };
+  const mc = colors[m.role] || "var(--gray)";
+  let body;
+  if (m.tool_calls) body = JSON.stringify(m, null, 2);
+  else body = String(m.content);
+  if (body === "__SKILL__") body = SKILL_OBS;
+  let cut = "";
+  if (body.length > 460){ cut = '<span class="cut">\\n…（后续 ' + (body.length - 460) + " 字符已截断，完整内容见会话文件）</span>"; body = body.slice(0, 460); }
+  return '<div class="msg" style="--mc:' + mc + '"><div class="mh">' +
+    '<span class="role">[' + m.role + "]</span>" +
+    '<span class="idx">#' + idx + "</span>" +
+    (isNew ? '<span class="new">本步新增</span>' : "") +
+    "</div>" + (body ? '<div class="body">' + esc(body) + cut + "</div>" : "") + "</div>";
+}
+let jwStep = 0;
+function renderJourney(){
+  const st = JOURNEY[jwStep];
+  $("#jwTitle").textContent = st.title;
+  $("#jwNote").innerHTML = st.note;
+  /* 联动：到达安全后处理(第5步)与结构化提取(第6步)时，点亮两条链路上的对应节点。
+     mock 模式下这两段不产生 tracer 事件，旅程快照即为"真实发生过"的演示。 */
+  hlChainNodes(jwStep === 5 ? ["safety"] : jwStep === 6 ? ["extract"] : []);
+  const snap = SNAPSHOTS[jwStep];
+  let h = "";
+  snap.forEach((m, i) => { h += msgCard(m, i, i === snap.length - 1 && jwStep > 0); });
+  if (jwStep === 0) h += '<div class="msg" style="--mc:var(--gray)"><div class="mh"><span class="role">[raw_messages]</span></div><div class="body">（空数组 —— 本轮对话尚未开始）</div></div>';
+  if (jwStep === 5) h += '<div class="msg" style="--mc:var(--orange)"><div class="mh"><span class="role">[安全检查]</span></div><div class="body">used=["load_skill"] → 注入扫描: 跳过 | 引用校验: 跳过 | NLI核验: 跳过 | 危急值: 无\\nforced_human = false</div></div>';
+  if (jwStep === 6) h += '<div class="msg" style="--mc:var(--green)"><div class="mh"><span class="role">[LegalResponse]</span><span class="new">结构化产出</span></div><div class="body">' + esc(JSON.stringify(JOURNEY[6].resp, null, 2)) + "</div></div>";
+  $("#jwMsgs").innerHTML = h;
+  $("#jwProg").textContent = "步骤 " + (jwStep + 1) + " / " + JOURNEY.length;
+  $("#jwPrev").disabled = jwStep === 0;
+  $("#jwNext").disabled = jwStep === JOURNEY.length - 1;
+  const dots = $("#jwSteps");
+  dots.innerHTML = "";
+  JOURNEY.forEach((_, i) => {
+    const b = document.createElement("button");
+    b.className = "st" + (i < jwStep ? " done" : i === jwStep ? " cur" : "");
+    b.textContent = i;
+    b.addEventListener("click", () => { jwStep = i; renderJourney(); });
+    dots.appendChild(b);
+  });
+}
+$("#jwPrev").addEventListener("click", () => { if (jwStep > 0){ jwStep--; renderJourney(); } });
+$("#jwNext").addEventListener("click", () => { if (jwStep < JOURNEY.length - 1){ jwStep++; renderJourney(); } });
+
+/* ---------- Tab4 轨迹回放 ---------- */
+const FLAT = [];
+REPLAY.forEach((turn, ti) => {
+  turn.events.forEach((ev, ei) => {
+    FLAT.push({ ti, q:turn.q, mode:turn.mode, ev, ei, total:turn.events.length });
+  });
+});
+function nodeForEvent(ev){
+  if (ev.type === "redflag_shortcut") return "redflag";
+  if (ev.type === "route") return "router";
+  if (ev.type === "injection_blocked" || ev.type === "fake_citations_removed" ||
+      ev.type === "nli_check" || ev.type === "nli_low_support") return "safety";
+  if (ev.type === "tool_call") return "react";
+  if (ev.type === "llm_call"){
+    if (ev.purpose === "extract") return "extract";
+    if (ev.purpose === "summarize") return "finish";
+    if (ev.purpose === "hyde" || ev.purpose === "fusion_expand" || ev.purpose === "stepback") return "assemble";
+    return "react";
+  }
+  return "input";
+}
+const NODE_LABEL = {};
+NODES.forEach(n => { NODE_LABEL[n.id] = n.no + " " + n.title; });
+
+let rpCur = 0, rpPlaying = false, rpTimer = null;
+function renderReplay(){
+  const cur = FLAT[rpCur];
+  document.querySelectorAll("#rpChain .node").forEach(nd => nd.classList.remove("hl"));
+  const nid = nodeForEvent(cur.ev);
+  const target = document.querySelector('#rpChain .node[data-node="' + nid + '"]');
+  if (target) target.classList.add("hl");
+  const ev = cur.ev;
+  let desc = "";
+  if (ev.type === "llm_call"){
+    desc = ev.demo
+      ? "结构化提取（语义演示）· 真实模式为 purpose=extract 的 LLM 调用"
+      : "LLM 调用 · purpose=" + ev.purpose +
+        " · tokens " + ev.prompt_tokens + "+" + ev.completion_tokens;
+  }
+  else if (ev.type === "tool_call") desc = "工具调用 " + ev.tool + " · " + (ev.ok ? "成功" : "失败");
+  else if (ev.type === "redflag_shortcut") desc = "红旗短路命中：" + (ev.flags || []).join("、") + "，零 LLM 返回";
+  else if (ev.type === "route") desc = "路由 → " + ev.agent;
+  else if (ev.type === "nli_check") desc = "NLI 句级核验 · 支持率 " +
+    Math.round(ev.supported_ratio * 100) + "%（核验 " + ev.checked + " 句）";
+  $("#rpInfo").innerHTML =
+    '<div class="turn-q"><span class="who">👤 用户</span>' + esc(cur.q) +
+    (cur.mode === "multi" ? '<span class="mode">［Multi-Agent 模式］</span>' : "") + "</div>" +
+    '<div class="ev-meta">' +
+    '事件类型　<b class="mono">' + ev.type + (ev.demo ? '（语义演示）' : "") + "</b><br>" +
+    "发生时刻　<b>t+" + ev.ts + "s</b>（该轮第 " + (cur.ei + 1) + " / " + cur.total + " 条）<br>" +
+    "链路节点　<b class=\"mnode\">" + (NODE_LABEL[nid] || nid) + "</b><br>" +
+    "说明　　　<b>" + esc(desc) + "</b></div>";
+  const shown = Object.assign({}, ev);
+  $("#rpJson").textContent = JSON.stringify(shown, null, 2);
+  $("#rpStat").textContent = "事件 " + (rpCur + 1) + " / " + FLAT.length;
+  const dots = document.querySelectorAll(".tl-dot");
+  dots.forEach((d, i) => {
+    d.className = "tl-dot" + (i < rpCur ? " past" : i === rpCur ? " cur" : "");
+  });
+  document.querySelectorAll(".tl-turn .tq").forEach((t, i) => {
+    t.classList.toggle("now", i === cur.ti);
+  });
+}
+function renderTimeline(){
+  const box = $("#tlTurns");
+  box.innerHTML = "";
+  REPLAY.forEach((turn, ti) => {
+    const div = document.createElement("div");
+    div.className = "tl-turn";
+    let dots = '<div class="tl-dots">';
+    turn.events.forEach((ev, ei) => {
+      const gi = FLAT.findIndex(f => f.ti === ti && f.ei === ei);
+      dots += '<button class="tl-dot" data-gi="' + gi + '" title="' +
+        esc(ev.type) + '"></button>';
+    });
+    dots += "</div>";
+    div.innerHTML = '<div class="tq">' + esc(turn.q) +
+      (turn.mode === "multi" ? "（Multi）" : "") + "</div>" + dots;
+    box.appendChild(div);
+  });
+  box.querySelectorAll(".tl-dot").forEach(d => {
+    d.addEventListener("click", () => { stopPlay(); rpCur = Number(d.dataset.gi); renderReplay(); });
+  });
+}
+function stopPlay(){
+  rpPlaying = false;
+  clearInterval(rpTimer);
+  $("#rpPlay").textContent = "▶ 播放";
+}
+function togglePlay(){
+  if (rpPlaying){ stopPlay(); return; }
+  if (rpCur >= FLAT.length - 1) rpCur = -1;
+  rpPlaying = true;
+  $("#rpPlay").textContent = "⏸ 暂停";
+  rpTimer = setInterval(() => {
+    if (rpCur < FLAT.length - 1){ rpCur++; renderReplay(); }
+    else stopPlay();
+  }, 1400);
+}
+$("#rpPlay").addEventListener("click", togglePlay);
+$("#rpNext").addEventListener("click", () => { stopPlay(); if (rpCur < FLAT.length - 1){ rpCur++; renderReplay(); } });
+$("#rpPrev").addEventListener("click", () => { stopPlay(); if (rpCur > 0){ rpCur--; renderReplay(); } });
+$("#rpReset").addEventListener("click", () => { stopPlay(); rpCur = 0; renderReplay(); });
+
+function renderSummary(){
+  const byPurpose = {};
+  let tools = 0, other = 0;
+  FLAT.forEach(f => {
+    const ev = f.ev;
+    if (ev.demo) return;               // 语义演示事件不计入真实统计
+    if (ev.type === "llm_call"){
+      const p = ev.purpose || "?";
+      byPurpose[p] = byPurpose[p] || { n:0, pt:0, ct:0, lat:0 };
+      byPurpose[p].n++; byPurpose[p].pt += ev.prompt_tokens || 0;
+      byPurpose[p].ct += ev.completion_tokens || 0; byPurpose[p].lat += ev.latency_ms || 0;
+    } else if (ev.type === "tool_call"){ tools++; }
+    else other++;
+  });
+  let total = 0, calls = 0;
+  let h = '<tr><th>用途</th><th>调用</th><th>prompt</th><th>completion</th><th>延迟ms</th></tr>';
+  Object.keys(byPurpose).sort().forEach(p => {
+    const u = byPurpose[p];
+    total += u.pt + u.ct; calls += u.n;
+    h += "<tr><td>" + esc(p) + "</td><td>" + u.n + "</td><td>" + u.pt +
+         "</td><td>" + u.ct + "</td><td>" + Math.round(u.lat) + "</td></tr>";
+  });
+  h += '<tr><td><b>合计</b></td><td><b>LLM ' + calls + ' 次</b></td><td colspan="3">' +
+       '<b>工具调用 ' + tools + ' 次 · 规则/安全事件 ' + other +
+       ' 次（redflag_shortcut/route/nli_check）· 总token ' + total +
+       '</b></td></tr>';
+  $("#rpSummary").innerHTML = h;
+}
+
+/* ---------- Tab2 ↔ 链路联动：旅程到达 ④/⑤ 时点亮对应节点 ---------- */
+function hlChainNodes(ids){
+  document.querySelectorAll("#flowMain .node, #rpChain .node")
+    .forEach(nd => nd.classList.remove("hl"));
+  (ids || []).forEach(id => {
+    document.querySelectorAll('.node[data-node="' + id + '"]')
+      .forEach(nd => nd.classList.add("hl"));
+  });
+}
+
+/* ---------- 初始化 ---------- */
+renderJourney();
+renderTimeline();
+renderReplay();
+renderSummary();
+</script>
+</body>
+</html>
