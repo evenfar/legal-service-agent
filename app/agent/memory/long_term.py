@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from dataclasses import asdict, dataclass
 from datetime import datetime
 
@@ -50,6 +51,7 @@ class LongTermMemory:
         self.max_facts = max_facts
         self.facts: list[MemoryFact] = []
         self.interaction_summaries: list[dict] = []
+        self._lock = threading.Lock()   # 读改写互斥：并发巩固不丢更新（审查#3）
 
     @property
     def path(self) -> str:

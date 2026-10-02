@@ -213,6 +213,7 @@ class MockLLMClient(BaseLLMClient):
     def __init__(self, tracer: Optional[Tracer] = None):
         self._tracer = tracer
         self._counts: dict[tuple, int] = {}
+        self._task_seq = 0            # 任务代次：与历史长度解耦（压缩/reset不回退）
 
     # ---- 计数：同一(系统提示,当前问题)按步数推进 ----
 
@@ -260,6 +261,10 @@ class MockLLMClient(BaseLLMClient):
 
     def chat(self, messages, tools=None, temperature=None, max_tokens=None,
              purpose="react") -> LLMResponse:
+        # 新任务判定：末条是用户消息且非[观察结果]回填（观察回填也用user角色）
+        if messages and messages[-1].get("role") == "user" \
+                and not str(messages[-1].get("content", "")).startswith("[观察结果]"):
+            self._task_seq += 1
         user = self._last_user(messages)
         if purpose == "router":
             content = self._route(user)
@@ -295,6 +300,10 @@ class MockLLMClient(BaseLLMClient):
         except Exception as e:  # noqa: BLE001
             raise LLMError(f"mock 无法构造 {schema.__name__}: {e}") from e
 
+    def reset_state(self) -> None:
+        """会话重置时清空步数缓存（由 BaseAgentRuntime.reset_session 调用）。"""
+        self._counts.clear()
+
     def _mk(self, content: str, messages, tool_calls=None) -> LLMResponse:
         if self._tracer:
             approx_prompt = len(json.dumps(messages, ensure_ascii=False)) // 4
@@ -307,8 +316,8 @@ class MockLLMClient(BaseLLMClient):
 
     def _react(self, messages, user: str, has_tools: bool) -> LLMResponse:
         # 键里掺入"当前是第几条用户消息"：同会话重复提问时步数从头计
-        turn_no = sum(1 for m in messages if m.get("role") == "user")
-        key = (hash(messages[0]["content"]) % 10**8, user[:120], turn_no)
+        # 键用任务代次而非历史长度：压缩/reset后计数不回退、不串轮
+        key = (hash(messages[0]["content"]) % 10**8, user[:120], self._task_seq)
         n = self._bump(key)
         plan = self._plan(user)
         if has_tools and n <= len(plan):

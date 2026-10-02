@@ -125,7 +125,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="法律咨询 Agent API", version="1.0.0", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
+# 本机演示边界（审查#14）：仅允许本机来源，部署边界见 docs/05
+app.add_middleware(CORSMiddleware, allow_origins=["http://127.0.0.1:8300", "http://localhost:8300"], allow_methods=["*"],
                    allow_headers=["*"])  # 本地演示，放开跨域
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.mount("/docs", StaticFiles(directory=str(DOCS_DIR)), name="docs")  # chain-explorer 直链
@@ -145,6 +146,11 @@ def health() -> dict:
 
 @app.post("/chat")
 def chat(req: ChatRequest) -> dict:
+    with _session_lock(req.session_id):
+        return _chat_locked(req)
+
+
+def _chat_locked(req: ChatRequest) -> dict:
     _validate_session_id(req.session_id)
     settings = build_settings(req.mode)
     agent = get_agent(req.session_id, settings)
@@ -159,10 +165,26 @@ def chat(req: ChatRequest) -> dict:
 
 @app.get("/chat/stream")
 def chat_stream(session_id: str, message: str, mode: Optional[str] = None):
-    """SSE 流式对话：事件白名单逐条推送，最后 event:done 携带完整 LegalResponse。"""
+    """SSE 流式对话：事件白名单逐条推送，最后 event:done 携带完整 LegalResponse。
+    同会话与 /chat 互斥（#3）：锁由生成器持有整个流生命周期。"""
     _validate_session_id(session_id)
     settings = build_settings(mode)
-    agent = get_agent(session_id, settings)
+    return _stream_locked(session_id, message, settings)
+
+
+def _stream_locked(session_id: str, message: str, settings):
+    lock = _session_lock(session_id)
+    if not lock.acquire(timeout=30):
+        def busy():
+            yield ("event: error\ndata: "
+                   + json.dumps({"detail": "同会话已有进行中的请求"},
+                                ensure_ascii=False) + "\n\n")
+        return busy()
+    try:
+        agent = get_agent(session_id, settings)
+    except Exception:
+        lock.release()
+        raise
 
     box: dict = {}
 
@@ -178,24 +200,27 @@ def chat_stream(session_id: str, message: str, mode: Optional[str] = None):
 
     def gen():
         nonlocal cursor
-        yield "retry: 3000\n\n"
-        while True:
-            batch = agent.tracer.since(cursor)
-            for e in _filtered(batch):
-                yield f"data: {json.dumps(e, ensure_ascii=False)}\n\n"
-            cursor += len(batch)   # 按实际取到的条数推进，不漏不重
-            if not worker.is_alive():
-                for e in _filtered(agent.tracer.since(cursor)):  # 冲刷收尾事件
+        try:
+            yield "retry: 3000\n\n"
+            while True:
+                batch = agent.tracer.since(cursor)
+                for e in _filtered(batch):
                     yield f"data: {json.dumps(e, ensure_ascii=False)}\n\n"
-                break
-            time.sleep(POLL_INTERVAL)
-        worker.join()
-        if "error" in box:
-            yield (f"event: error\ndata: "
-                   f"{json.dumps({'detail': box['error']}, ensure_ascii=False)}\n\n")
-            return
-        payload = json.dumps(box["resp"].model_dump(mode="json"), ensure_ascii=False)
-        yield f"event: done\ndata: {payload}\n\n"
+                cursor += len(batch)   # 按实际取到的条数推进，不漏不重
+                if not worker.is_alive():
+                    for e in _filtered(agent.tracer.since(cursor)):  # 冲刷收尾事件
+                        yield f"data: {json.dumps(e, ensure_ascii=False)}\n\n"
+                    break
+                time.sleep(POLL_INTERVAL)
+            worker.join()
+            if "error" in box:
+                yield (f"event: error\ndata: "
+                       f"{json.dumps({'detail': box['error']}, ensure_ascii=False)}\n\n")
+                return
+            payload = json.dumps(box["resp"].model_dump(mode="json"), ensure_ascii=False)
+            yield f"event: done\ndata: {payload}\n\n"
+        finally:
+            lock.release()
 
     return StreamingResponse(gen(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache",
@@ -207,6 +232,16 @@ class ResetRequest(BaseModel):
     mode: Optional[str] = None
 
 
+_session_locks: dict[str, threading.Lock] = {}
+_locks_guard = threading.Lock()
+
+
+def _session_lock(session_id: str) -> threading.Lock:
+    """同会话 chat/reset 串行保护（不同会话互不阻塞）。"""
+    with _locks_guard:
+        return _session_locks.setdefault(session_id, threading.Lock())
+
+
 @app.post("/reset")
 def reset(req: ResetRequest) -> dict:
     _validate_session_id(req.session_id)
@@ -215,9 +250,15 @@ def reset(req: ResetRequest) -> dict:
         old = SESSIONS.pop(req.session_id, None)
         SESSION_MODES.pop(req.session_id, None)
     if old is not None:
+        old.reset_session()   # 真语义：清历史/摘要/STM/持久化文件（审查#1）
         _safe_close(old)
+    else:
+        from app.agent.storage import delete_session
+        delete_session(str(Path("app/sessions/api") / f"{req.session_id}.json"))
     get_agent(req.session_id, settings)  # 立即重建：sessions 数不增
-    return {"status": "reset", "session_id": req.session_id}
+    return {"status": "reset", "session_id": req.session_id,
+            "cleared": ["history", "summary", "short_term_memory", "session_file"],
+            "kept": ["long_term_memory(独立档案文件, 不随会话清除)"]}
 
 
 @app.get("/")

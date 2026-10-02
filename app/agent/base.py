@@ -79,6 +79,10 @@ class BaseAgentRuntime:
         self.summary = None
         if self.memory_manager:
             self.memory_manager.reset_short_term()
+        # 同步清理 Mock 客户端状态：reset后重复提问必须重新走工具（审查#2）
+        reset_state = getattr(self.client, "reset_state", None)
+        if reset_state:
+            reset_state()
         delete_session(self.session_path)
 
     # ---------- 消息组装 ----------
@@ -250,12 +254,22 @@ class BaseAgentRuntime:
 
     # ---------- 回合收尾 ----------
 
-    def finish_turn(self, result: LegalResponse) -> LegalResponse:
+    def finish_turn(self, result: LegalResponse,
+                    skip_model_memory: bool = False) -> LegalResponse:
         self.raw_messages.append(
             {"role": "assistant",
              "content": result.model_dump_json(ensure_ascii=False)})
         if self.memory_manager:
-            self.memory_manager.update_short_term(self.raw_messages[-6:])
+            try:
+                if skip_model_memory:
+                    # 紧急回复不依赖模型：确定性事实直接入短期记忆（审查#7）
+                    if result.urgency.value == "emergency" and len(self.raw_messages) >= 2:
+                        self.memory_manager.stm.facts.append(
+                            f"[紧急红线] {self.raw_messages[-2].get('content', '')[:60]}")
+                else:
+                    self.memory_manager.update_short_term(self.raw_messages[-6:])
+            except Exception as e:  # noqa: BLE001 —— 记忆失败不能吞掉已完成回复
+                self.tracer.log("memory_update_failed", error=str(e)[:120])
         self.maybe_compress()
         self.save()
         self._trace_debug("会话已保存", {

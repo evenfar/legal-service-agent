@@ -24,7 +24,8 @@ def save_session(path: str, messages: list[dict], summary: Optional[str],
         "short_term_memory": short_term_memory,
     }
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    tmp = path + ".tmp"
+    import uuid
+    tmp = f"{path}.{uuid.uuid4().hex}.tmp"   # 唯一临时名：并发写不互踩（审查#3）
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False)
     os.replace(tmp, path)  # 原子替换
