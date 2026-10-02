@@ -67,6 +67,8 @@ def main() -> None:
           f"平均结果分 {report.avg_result or 0:.2f}")
     if report.safety_failures:
         print(f"🚨 安全红线未达标用例: {', '.join(report.safety_failures)}")
+        import sys as _sys
+        _sys.exit(2)   # 安全失败退出码非0（审查#22：CI可拦截）
     if report.errors:
         print(f"执行异常用例: {', '.join(report.errors)}")
 

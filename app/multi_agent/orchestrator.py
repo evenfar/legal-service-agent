@@ -44,6 +44,9 @@ class MultiAgentOrchestrator(BaseAgentRuntime):
             tracer=self.tracer, retriever=retriever,
             memory_manager=self.memory_manager,
             skill_manager=self.skill_manager))
+        if s.mcp_enabled:   # 与单Agent同一条MCP接线（审查#5）
+            from app.agent.tools.mcp_bridge import attach_mcp_tools
+            attach_mcp_tools(self._full_registry, s, self.tracer)
 
     def _restore_extra(self, loaded: dict) -> None:
         if self.memory_manager and loaded.get("short_term_memory"):
@@ -72,6 +75,8 @@ class MultiAgentOrchestrator(BaseAgentRuntime):
         final, used, outputs = self.react(system, registry,
                                           purpose=f"react:{agent_key}")
         final, forced_human = self.safety_post_process(final, used, outputs)
+        if self.raw_messages and self.raw_messages[-1].get("role") != "assistant":
+            self.raw_messages.append({"role": "assistant", "content": final})
 
         result = self.extract_structured(final)
         if forced_human:

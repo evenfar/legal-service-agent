@@ -85,6 +85,11 @@ def parse_minfadian(path: Path) -> list[Article]:
             if m.group(2).strip():
                 chapter = m.group(2).strip()
             continue
+        if re.match(r"^第[一二三四五六七八九十百千零]+节\s*", line):
+            if current:   # 节标题独立：不混入上一条正文（审查#25）
+                articles.append(current)
+                current = None
+            continue
         if _ARTICLE_RE.match(line):
             if current:
                 articles.append(current)
@@ -175,6 +180,8 @@ def ingest_precedents() -> dict:
     for sec in sections[1:]:
         sec = sec.strip()
         if not sec:
+            continue
+        if not sec.startswith("指导案例"):   # 来源附录等非案例标题不计（审查#25）
             continue
         lines_out.append(f"## {sec}")
         lines_out.append("")

@@ -210,7 +210,15 @@ class AdaptiveRetriever:
                    "stepback": "stepback"}.get(strategy)
         if purpose is None:
             return query, 0
-        resp = self.client.chat([{"role": "user", "content": query}],
+        prompts = {
+            "hyde": ("假设你已找到该问题的答案。请直接写一段2~3句、可能成为该问题"
+                     f"标准答案的法条风格文本（不回答用户，只生成假设文档）：{query}"),
+            "fusion_expand": ("把下面的问题拆解为3个互相独立的检索子查询，每行一个、"
+                              f"不要编号和解释：{query}"),
+            "stepback": ("不要回答问题本身。先后退一步，写出回答该问题所需的"
+                         f"一般性原则或制度名称（一句话）：{query}"),
+        }
+        resp = self.client.chat([{"role": "user", "content": prompts[purpose]}],
                                 temperature=0.0, purpose=purpose)
         text = resp.content.strip()
         if strategy == "fusion":
@@ -220,11 +228,26 @@ class AdaptiveRetriever:
 
     # ---- 单策略执行 ----
 
+    @staticmethod
+    def _normalize_query(query: str) -> str:
+        """召回前条号规范化（审查#18）：'第1062条'→追加中文形式，
+        使数字/中文两种写法在词法与向量两路都能命中同一条文。"""
+        m = re.search(r"第(\d+)条", query)
+        if not m:
+            return query
+        try:
+            from app.agent.rag.lawref import num2cn
+            cn = f"第{num2cn(int(m.group(1)))}条"
+            return query if cn in query else f"{query} {cn}"
+        except Exception:  # noqa: BLE001
+            return query
+
     def _run_strategy(self, strategy: str, query: str, stats: SearchStats
                       ) -> list[RetrievedChunk]:
         transformed, llm = self._transform(strategy, query)
         stats.llm_calls += llm
         queries = transformed if isinstance(transformed, list) else [transformed]
+        queries = [self._normalize_query(q) for q in queries]
         rankings: list[list[str]] = []
         pool: dict[str, RetrievedChunk] = {}
         for q in queries:
@@ -269,8 +292,8 @@ class AdaptiveRetriever:
 
     def _graph_nominate(self, ranked: list[RetrievedChunk],
                         query: str) -> list[RetrievedChunk]:
-        """引用图谱邻居提名：与top3有案例↔法条边的块，rerank分显著更高
-        （超过末位+GRAPH_BONUS_MARGIN）才顶替第3位——图只给机会，精排终裁。"""
+        """引用图谱提名（审查#19重写）：邻居从图侧直接取块（不依赖是否已召回），
+        rerank 分须超过现末位 + GRAPH_BONUS_MARGIN 才顶替末位——图给机会，精排终裁。"""
         if not self._kb_dir or len(ranked) < 3:
             return ranked
         from app.agent.rag.citation_graph import get_citation_graph
@@ -281,19 +304,22 @@ class AdaptiveRetriever:
         neighbor_ids: set[str] = set()
         for cid in top_ids:
             neighbor_ids |= graph.neighbors(cid)
-        neighbor_ids -= top_ids
+        neighbor_ids -= {h.chunk.chunk_id for h in ranked}
         if not neighbor_ids:
             return ranked
-        # 邻居仅从召回池ranked[3:]里找：图提名受召回上限约束（设计边界）
+        from app.agent.rag.bm25 import get_bm25
+        idx = get_bm25(self._kb_dir)
         base_score = rerank_score(query, ranked[2])
         best, best_score = None, -1.0
-        for h in ranked[3:]:
-            if h.chunk.chunk_id in neighbor_ids:
-                sc = rerank_score(query, h)
-                if sc > best_score:
-                    best, best_score = h, sc
+        for cid in neighbor_ids:
+            ch = idx.get_chunk(cid)
+            if ch is None:
+                continue
+            sc = rerank_score(query, RetrievedChunk(chunk=ch, score=0.0))
+            if sc > best_score:
+                best, best_score = RetrievedChunk(chunk=ch, score=0.0), sc
         if best is not None and best_score > base_score + GRAPH_BONUS_MARGIN:
-            ranked = ranked[:2] + [best] + ranked[3:4]
+            ranked = ranked[:2] + [best] + ranked[2:]
         return ranked  # 不在此截断，由外层 search 的 [:top_k] 统一裁剪
 
     # ---- 对外入口（签名与 KnowledgeRetriever.search 兼容） ----

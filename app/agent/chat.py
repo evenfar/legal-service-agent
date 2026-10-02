@@ -66,6 +66,9 @@ class LegalAgent(BaseAgentRuntime):
 
         final, used, outputs = self.react(system, self.tools)
         final, forced_human = self.safety_post_process(final, used, outputs)
+        # 安全后处理后的正文才进入历史/持久化（审查#16c）
+        if self.raw_messages and self.raw_messages[-1].get("role") != "assistant":
+            self.raw_messages.append({"role": "assistant", "content": final})
 
         result = self.extract_structured(final)
         if forced_human:

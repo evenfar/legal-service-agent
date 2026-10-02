@@ -52,9 +52,11 @@ _SESSION_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 # ---------------- 会话工厂（项目注入风格） ----------------
 
 def build_settings(mode: Optional[str]) -> Settings:
-    """mode=real 用环境配置的真实模型；其余（默认/未知）强制 mock。"""
+    """mode=real 用环境配置的真实模型；其余（默认/未知）强制 mock。
+    客户端 mode=real 仅在服务端 ALLOW_REAL_MODE=1 时生效（审查#14）。"""
     data = BASE_SETTINGS.model_dump()
-    data["mock_mode"] = (mode or "mock").lower() != "real"
+    allow_real = os.environ.get("ALLOW_REAL_MODE", "") == "1"
+    data["mock_mode"] = not (allow_real and (mode or "").lower() == "real")
     return Settings(**data)
 
 
@@ -84,6 +86,7 @@ def get_agent(session_id: str, settings: Settings):
         SESSION_MODES.pop(session_id, None)
         if old is not None:
             _safe_close(old)
+        settings.memory_user_id = f"session-{session_id}"  # 会话隔离记忆命名空间（审查#14）
         agent = build_agent(session_id, settings)
         SESSIONS[session_id] = agent
         SESSION_MODES[session_id] = mock

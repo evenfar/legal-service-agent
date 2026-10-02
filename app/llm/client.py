@@ -165,7 +165,7 @@ class OpenAICompatClient(BaseLLMClient):
     def parse_structured(self, messages, schema, purpose="extract"):
         t0 = time.perf_counter()
         try:
-            resp = self._call(lambda: self._inner.beta.chat.completions.create(
+            resp = self._call(lambda: self._inner.beta.chat.completions.parse(
                 model=self._s.model_name, messages=messages,
                 temperature=0.0, response_format=schema))
             self._trace(purpose, resp, (time.perf_counter() - t0) * 1000)
@@ -185,8 +185,9 @@ class OpenAICompatClient(BaseLLMClient):
             + json.dumps(schema.model_json_schema(), ensure_ascii=False)
             + "\n文本："
         )
-        merged = [{"role": "system", "content": sys_prompt},
-                  {"role": "user", "content": messages[-1]["content"]}]
+        # 降级保留完整对话（含system约束），仅把schema说明并入system（审查#17）
+        merged = [{"role": "system", "content": sys_prompt}] + [
+            m for m in messages if m.get("role") != "system"]
         resp = self._call(lambda: self._inner.chat.completions.create(
             model=self._s.model_name, messages=merged, temperature=0.0))
         self._trace(purpose, resp, (time.perf_counter() - t0) * 1000)
@@ -349,7 +350,11 @@ class MockLLMClient(BaseLLMClient):
     @staticmethod
     def _plan(user: str) -> list[tuple[str, dict]]:
         """按用户问题决定工具调用序列（可多步）。"""
-        if re.search(r"(你好|您好|hi|hello|在吗)", user, re.IGNORECASE):
+        # 问候仅在消息几乎全是寒暄时短路；任务优先（审查#23）
+        stripped = re.sub(r"(你好|您好|hi|hello|在吗|请|帮我|，|,|。|\s)+", "", user,
+                          flags=re.IGNORECASE)
+        if stripped == "" or (re.match(r"^(你好|您好|hi|hello|在吗)", user, re.IGNORECASE)
+                              and len(stripped) <= 4):
             return []
         m = re.search(r"LS-\d{4}-\d{3}", user)
         if m:

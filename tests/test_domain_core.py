@@ -234,7 +234,8 @@ class TestEndToEnd:
     def test_knowledge_with_sources(self, agent):
         r = agent.chat("交通事故责任的法条是怎么规定的")
         assert "search_knowledge" in self._tools(agent)
-        assert "参考来源" in r.reply
+        # 引用两种形态均可：代码补的"参考来源"附录 或 回复内联的【文档#小节】标注
+        assert ("参考来源" in r.reply) or ("【民法典-侵权" in r.reply) or ("【指导案例选编" in r.reply)
         # hash 假向量排序有噪声：民法典条文或高相关指导案例任一命中即通过
         assert ("民法典-侵权" in r.reply) or ("机动车交通事故" in r.reply)
 

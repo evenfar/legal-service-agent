@@ -18,9 +18,9 @@ def search_knowledge(retriever: KnowledgeRetriever, query: str, top_k: int = 0) 
         chunks = retriever.search(query, top_k=k)
     except FileNotFoundError as e:
         return {"success": False, "error": str(e)}
+    # 只输出清洗后的文本（审查#16）：模型不接收原始检索内容，清洗不可被绕过
     results = [{"source": f"{c.chunk.doc}#{c.chunk.section}",
-                "text": c.chunk.text,
-                "sanitized": sanitize_tool_output(c.chunk.text)}
+                "text": sanitize_tool_output(c.chunk.text)}
                for c in chunks]
     out = {"success": True, "query": query, "chunks": results}
     stats = getattr(retriever, "last_stats", None)  # AdaptiveRetriever 诊断信息

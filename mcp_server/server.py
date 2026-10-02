@@ -22,7 +22,8 @@ except ModuleNotFoundError as e:
         "请安装 mcp>=1.8,<2（见 requirements.txt）") from e
 
 from app.agent.rag.retriever import build_retriever  # noqa: E402
-from app.agent.tools.case import query_case as _query_case  # noqa: E402
+from app.agent.tools.case import (query_case as _query_case,  # noqa: E402
+                                  update_case_note as _update_case_note)
 from app.agent.tools.court import query_court as _query_court  # noqa: E402
 from app.agent.tools.law import query_law_article as _query_law_article  # noqa: E402
 from app.agent.tools.limitation import calc_limitation as _calc_limitation  # noqa: E402
@@ -45,6 +46,12 @@ def _get_retriever():
 def query_case(case_id: str) -> str:
     """查询案件进展（阶段/法院/下一步/关键日期）。案号格式 LS-2026-001。"""
     return json.dumps(_query_case(case_id), ensure_ascii=False)
+
+
+@mcp.tool()
+def update_case_note(case_id: str, note: str) -> str:
+    """为案件补充当事人备注（写操作，更新服务端案件记录）。"""
+    return json.dumps(_update_case_note(case_id, note), ensure_ascii=False)
 
 
 @mcp.tool()

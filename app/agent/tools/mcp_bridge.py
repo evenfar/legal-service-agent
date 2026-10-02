@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import json
+
 from app.agent.tools.registry import ToolRegistry
 from app.agent.tracer import Tracer
 from app.config.settings import Settings
@@ -29,7 +31,20 @@ def attach_mcp_tools(registry: ToolRegistry, settings: Settings,
         client_ref = client
 
         def _call(_c=client_ref, _n=fn["name"], **kwargs):
-            return _c.call_tool(_n, kwargs)
+            from app.agent.safety import sanitize_tool_output
+            raw = _c.call_tool(_n, kwargs)
+            try:  # 协议边界解析一次：JSON文本还原为对象（审查#4 双重编码）
+                obj = json.loads(raw)
+            except (json.JSONDecodeError, TypeError):
+                return {"success": False, "error": "MCP 返回非JSON结果",
+                        "raw": str(raw)[:200]}
+            if not isinstance(obj, dict):
+                return {"success": False, "error": "MCP 返回结构异常", "raw": str(obj)[:200]}
+            # 统一安全出口：MCP 与本地工具同过清洗（审查#16d）
+            for k in ("result", "text", "content", "output"):
+                if isinstance(obj.get(k), str):
+                    obj[k] = sanitize_tool_output(obj[k])
+            return obj
 
         # 同名工具：MCP 版本覆盖本地版本（服务端是事实之源）。
         # 工具名必须与本地一致——安全后处理按名匹配（危急值/引用校验）。

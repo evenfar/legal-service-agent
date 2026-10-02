@@ -28,9 +28,19 @@ class Router:
         消息角色分离让"指令"与"数据"互不污染（也是 mock 可测的前提）。"""
         system = ROUTER_PROMPT
         if history:
-            recent = [m for m in history[-4:]
-                      if m.get("role") in ("user", "assistant")
-                      and m.get("content") and len(m.get("content", "")) < 200]
+            # 最近有效轮（预算内截断而非整条丢弃；工具消息不进路由上下文）（审查#23）
+            recent, budget = [], 600
+            for m in reversed(history):
+                if m.get("role") not in ("user", "assistant") or not m.get("content"):
+                    continue
+                take = m["content"][:200]
+                if budget - len(take) < 0 and recent:
+                    break
+                recent.append(m)
+                budget -= len(take)
+                if len(recent) >= 4:
+                    break
+            recent.reverse()
             if recent:
                 system += "\n\n最近对话：\n" + "\n".join(
                     f"{'用户' if m['role'] == 'user' else '客服'}: {m['content']}"

@@ -73,7 +73,7 @@ class Evaluator:
         user_input = case.turns[-1] if case.turns else ""
 
         d: dict = {}
-        d["tool_accuracy"] = tool_accuracy(case.expected_tools, trace.called_tools)
+        d["tool_accuracy"] = tool_accuracy(case.expected_tools, trace)
         d["tool_efficiency"] = tool_efficiency(case.min_tool_calls,
                                                len(trace.called_tools))
         d["token_pass"] = token_cost_pass(trace.total_tokens, case.max_tokens)

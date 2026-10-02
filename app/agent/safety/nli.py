@@ -22,15 +22,37 @@ _SENT_SPLIT = re.compile(r"[。！？!?\n；;]+")
 
 
 def split_sentences(reply: str) -> list[str]:
-    return [s.strip() for s in _SENT_SPLIT.split(reply)
-            if s.strip() and len(s.strip()) >= MIN_SENTENCE_CHARS]
+    """短句免检例外：含数字/义务词的高风险句参与核验（审查#24）。"""
+    out = []
+    for s in _SENT_SPLIT.split(reply):
+        s = s.strip()
+        if not s:
+            continue
+        risky = bool(re.search(r"\d|应当|必须|不得|禁止|可以|有权", s))
+        if len(s) >= MIN_SENTENCE_CHARS or risky:
+            out.append(s)
+    return out
+
+
+_NEGATIONS = ("不", "未", "无", "没", "禁止", "不得", "拒绝")
 
 
 def sentence_support(sentence: str, evidence_tokens: set[str]) -> float:
+    """词汇支持启发式（非事实正确概率，审查#24标注）：覆盖率+否定冲突惩罚。"""
     toks = _tokens(sentence)
     if not toks:
         return 1.0
-    return sum(1 for t in toks if t in evidence_tokens) / len(toks)
+    ratio = sum(1 for t in toks if t in evidence_tokens) / len(toks)
+    ev_join = " ".join(evidence_tokens)
+    sent_neg = any(n in sentence for n in _NEGATIONS)
+    if sent_neg and ratio > 0.5:
+        key_term = next((t for t in toks if len(t) >= 2 and t in ev_join), "")
+        if key_term:
+            pos = ev_join.find(key_term)
+            window = ev_join[max(0, pos - 8):pos + len(key_term) + 8]
+            if not any(n in window for n in _NEGATIONS):
+                ratio *= 0.5
+    return ratio
 
 
 def verify_reply_support(reply: str, evidence: list[str]) -> dict:

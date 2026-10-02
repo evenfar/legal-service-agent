@@ -20,7 +20,8 @@ sys.path.insert(0, str(ROOT))
 
 from app.agent.rag.adaptive import (AdaptiveRetriever, RECALL_K,  # noqa: E402
                                     rerank_score)
-from app.agent.rag.retriever import build_retriever  # noqa: E402
+from app.agent.rag.retriever import build_retriever
+from app.llm.client import build_client  # noqa: E402
 from app.config.settings import Settings  # noqa: E402
 
 
@@ -39,7 +40,7 @@ def hit_metrics(hits, expected: list[str]) -> tuple[float, float, str]:
     return 0.0, 0.0, ""
 
 
-def evaluate(retriever, entries, mode: str) -> dict:
+def evaluate(retriever, entries, mode: str, settings=None) -> dict:
     hit = mrr = 0.0
     llm = searches = 0
     rows = []
@@ -61,9 +62,9 @@ def evaluate(retriever, entries, mode: str) -> dict:
             if dense and dense[0].score >= DENSE_GATE:
                 bm = []          # 门控：语义已强，BM25不并票
             else:
-                bm = get_bm25(str(_P(settings.kb_dir))).search(e["query"], RECALL_K)
+                bm = get_bm25(str(_P((settings or Settings()).kb_dir))).search(e["query"], RECALL_K)
             pool = {h.chunk.chunk_id: h for h in dense}
-            idx = get_bm25(str(_P(settings.kb_dir)))
+            idx = get_bm25(str(_P((settings or Settings()).kb_dir)))
             top = bm[0][1] if bm else 1.0
             for cid, sc in bm:
                 if cid not in pool:
@@ -103,9 +104,11 @@ def main() -> None:
     settings = Settings(mock_mode=offline)
     if not offline:
         settings.kb_index_path = "app/sessions/kb_index_real.json"
-    retriever = build_retriever(settings)  # AdaptiveRetriever
+    from app.agent.tracer import Tracer as _T
+    rewrite_client = None if offline else build_client(settings, _T())  # --real改写真实调用
+    retriever = build_retriever(settings, client=rewrite_client)  # AdaptiveRetriever
 
-    results = {m: evaluate(retriever, entries, m)
+    results = {m: evaluate(retriever, entries, m, settings)
                for m in ("baseline", "rerank", "hybrid", "adaptive")}
 
     emb = "真实 text-embedding-3-small" if not offline else "离线 HashEmbedder"

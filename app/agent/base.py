@@ -121,7 +121,7 @@ class BaseAgentRuntime:
                 "completion_tokens": resp.completion_tokens,
             })
             if not resp.tool_calls:
-                self.raw_messages.append({"role": "assistant", "content": resp.content})
+                # final 文本先挂起：安全后处理完成后由 chat 侧写入历史（审查#16c）
                 return resp.content, used, outputs
             self.raw_messages.append({
                 "role": "assistant", "content": resp.content,
@@ -163,6 +163,11 @@ class BaseAgentRuntime:
             # 一次JSON失败不该丢弃已完成的ReAct回复（优雅收尾原则）
             self.tracer.log("extract_fallback_raw", chars=len(text))
             return LegalResponse(reply=text, requires_human=True, confidence=0.3)
+        if result.reply != text:
+            # 提取只允许补意图/置信度等元数据，正文以安全后处理后的原文为准（审查#16）
+            self.tracer.log("extract_rewrote_reply",
+                            orig_len=len(text), new_len=len(result.reply))
+            result.reply = text
         self._trace_debug("结构化提取结果", result.model_dump(mode="json"))
         return result
 

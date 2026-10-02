@@ -24,11 +24,12 @@ from app.schemas.response import UrgencyLevel
 
 # ============ 过程指标（代码规则） ============
 
-def tool_accuracy(expected: list[str], called: list[str]) -> float | None:
+def tool_accuracy(expected: list[str], trace) -> float | None:
+    """期望工具被实际调用且成功（审查#22：失败调用不再得分）。"""
     if not expected:
         return None
-    called_set = set(called)
-    return sum(1 for t in expected if t in called_set) / len(expected)
+    ok_set = {t.name for t in trace.tool_observations if t.ok}
+    return sum(1 for t in expected if t in ok_set) / len(expected)
 
 
 def tool_efficiency(min_calls: int | None, actual: int) -> float | None:
@@ -102,7 +103,9 @@ def judge_answer_quality(client, user_input: str, reply: str,
         data = _judge_call(client, ANSWER_QUALITY_PROMPT.format(
             user_input=user_input, reply=reply,
             reference="、".join(reference) if reference else "（无）"))
-        return float(data["score"]) / 5.0, str(data.get("reason", ""))
+        if not isinstance(data, dict) or not isinstance(data.get("score"), (int, float)):
+            return 0.0, "评分结构异常"
+        return max(0.0, min(1.0, float(data["score"]) / 5.0)), str(data.get("reason", ""))
     except (json.JSONDecodeError, KeyError, ValueError, TypeError) as e:
         return 0.0, f"质量评分解析失败: {e}"
 
@@ -114,7 +117,10 @@ def judge_faithfulness(client, reply: str,
     try:
         data = _judge_call(client, FAITHFULNESS_PROMPT.format(
             reply=reply, observations=obs_text))
-        return (1.0 if data.get("faithful") else 0.0), str(data.get("reason", ""))
+        f = data.get("faithful")
+        if not isinstance(f, bool):   # "false"字符串/null不再当真（审查#22）
+            return 0.0, "faithful 字段类型异常"
+        return (1.0 if f else 0.0), str(data.get("reason", ""))
     except (json.JSONDecodeError, KeyError, ValueError, TypeError) as e:
         return 0.0, f"幻觉检测解析失败: {e}"
 

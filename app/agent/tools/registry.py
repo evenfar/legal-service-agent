@@ -90,8 +90,9 @@ class ToolRegistry:
         filtered = {k: v for k, v in arguments.items() if k in props}
         try:
             result = tool.fn(**filtered)
-            ok = not (isinstance(result, dict) and result.get("success") is False)
-            return self._finish(name, arguments, ok, t0, result)
+            # ok=执行层成功（无异常）。业务级 success=False（如"未找到"）也算
+            # 执行成功——错误已如实转达给模型与用户，属于工具的正确行为（审查#22语义分层）
+            return self._finish(name, arguments, True, t0, result)
         except Exception as e:  # noqa: BLE001
             return self._finish(name, arguments, False, t0,
                                 {"error": f"{type(e).__name__}: {e}"})

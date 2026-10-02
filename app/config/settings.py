@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -74,6 +75,18 @@ class Settings(BaseSettings):
 
     # ---- 可观测 ----
     trace_path: str = "app/sessions/trace.jsonl"
+
+    @field_validator("fallback_models", mode="before")
+    @classmethod
+    def _parse_fallback_models(cls, v):
+        """env里逗号分隔与JSON数组均兼容（审查#26）。"""
+        if isinstance(v, str):
+            v = v.strip()
+            if v.startswith("["):
+                import json as _json
+                return _json.loads(v)
+            return [m.strip() for m in v.split(",") if m.strip()]
+        return v
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 
