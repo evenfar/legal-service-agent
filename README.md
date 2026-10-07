@@ -15,7 +15,7 @@ uvicorn app.api:app --port 8300  # 打开 http://127.0.0.1:8300（默认mock零�
 python main.py --mock --multi    # Multi-Agent（婚姻家事/合同债务/侵权赔偿/紧急通道）
 python main.py --mock --trace    # 逐层打印 LLM 请求/工具调用/结构化提取
 
-pytest                           # 109 个离线测试
+pytest                           # 121 个离线测试（含 langgraph 版 12 条）
 python -m app.scripts.run_eval   # 18 条黄金用例评估（含4条安全红线）
 ```
 
@@ -61,7 +61,7 @@ python -m app.scripts.run_eval   # 18 条黄金用例评估（含4条安全红�
   ④兜错体系：模型故障转移链 主→备→规则模板永不失败（`llm/router.py`）+ 检索置信度三档拒答
   ⑤法条引用图谱：案例↔法条双向边邻居提名（`rag/citation_graph.py`）+ 规则NLI句级防幻觉（`safety/nli.py`）
   实测（12条groundtruth双列）：离线hash hit@3 0.33→**0.83**；真实emb 0.92→**1.00**（rerank/hybrid/adaptive并列满档）
-  `python -m app.scripts.run_retrieval_eval --strict [--real]`；109测试全绿
+  `python -m app.scripts.run_retrieval_eval --strict [--real]`；121测试全绿
 - 工程化：CI / Docker / FastAPI 服务化（与 med 项目共用升级路径）
 
 ## 学习路径（推荐顺序）
