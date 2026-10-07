@@ -61,5 +61,12 @@ python -m app.scripts.run_eval   # 18 条黄金用例评估（含4条安全红�
   ④兜错体系：模型故障转移链 主→备→规则模板永不失败（`llm/router.py`）+ 检索置信度三档拒答
   ⑤法条引用图谱：案例↔法条双向边邻居提名（`rag/citation_graph.py`）+ 规则NLI句级防幻觉（`safety/nli.py`）
   实测（12条groundtruth双列）：离线hash hit@3 0.33→**0.83**；真实emb 0.92→**1.00**（rerank/hybrid/adaptive并列满档）
-  `python -m app.scripts.run_retrieval_eval --strict [--real]`；104测试全绿
+  `python -m app.scripts.run_retrieval_eval --strict [--real]`；109测试全绿
 - 工程化：CI / Docker / FastAPI 服务化（与 med 项目共用升级路径）
+
+## 学习路径（推荐顺序）
+
+1. **跑起来**：`python main.py --mock` 问三类问题（查案件/时效/红线）→ 再开 Web 界面看右侧事件面板
+2. **看链路**：打开 `docs/chain-explorer.html`（Tab2"一次消息的旅程"逐步看 messages 演化）
+3. **按文档顺序读代码**：01域适配 → 02语料管线 → 05API → 03评估与安全 → 04RAG机制栈
+4. **验证理解**：改一处代码跑 `pytest` + `run_eval` + `run_retrieval_eval --strict` 三件套
