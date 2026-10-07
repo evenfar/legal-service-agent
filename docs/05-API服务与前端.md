@@ -1,5 +1,7 @@
 # 05 · API 服务与前端
 
+> 📍 学习路径：[README入口](../README.md) → [01域适配](01-法律域适配与复用架构.md) → [02语料管线](02-语料管线-ingest.md) → **05API** → [03评估安全](03-评估与安全.md) → [04RAG机制](04-Phase2-RAG机制栈路线图.md) → [06调试实录](06-调试实录.md) → [链路浏览器](chain-explorer.html)
+
 第 6 块工程拼图：把 CLI 版 `main.py` 的 LegalAgent 搬到浏览器——
 FastAPI 服务层 + 单文件聊天前端 + SSE 实时思考流。agent 栈一行未改。
 

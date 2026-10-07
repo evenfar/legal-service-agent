@@ -15,7 +15,7 @@ uvicorn app.api:app --port 8300  # 打开 http://127.0.0.1:8300（默认mock零�
 python main.py --mock --multi    # Multi-Agent（婚姻家事/合同债务/侵权赔偿/紧急通道）
 python main.py --mock --trace    # 逐层打印 LLM 请求/工具调用/结构化提取
 
-pytest                           # 64 个离线测试
+pytest                           # 109 个离线测试
 python -m app.scripts.run_eval   # 18 条黄金用例评估（含4条安全红线）
 ```
 
@@ -70,3 +70,4 @@ python -m app.scripts.run_eval   # 18 条黄金用例评估（含4条安全红�
 2. **看链路**：打开 `docs/chain-explorer.html`（Tab2"一次消息的旅程"逐步看 messages 演化）
 3. **按文档顺序读代码**：01域适配 → 02语料管线 → 05API → 03评估与安全 → 04RAG机制栈
 4. **验证理解**：改一处代码跑 `pytest` + `run_eval` + `run_retrieval_eval --strict` 三件套
+5. **踩坑学习**：读 docs/06-调试实录.md（四个真实bug的完整排查，面试最有价值的素材）

@@ -227,6 +227,9 @@ class BaseAgentRuntime:
                                     ratio=verdict["supported_ratio"])
             final = append_sources_if_missing(final, sources)
         for name, out in outputs:
+            # 多领域挂载点：危急值升级逻辑从医疗版复用而来。法律域工具集无
+            # query_lab_report，此分支休眠；换成 calc_limitation 的 warning=true
+            # 升级是 docs/03 练习3 的作业（保留原因：展示跨域复用的挂载方式）。
             if name != "query_lab_report":
                 continue
             try:  # 按字段取值而非子串匹配——序列化格式变化不会让防线失效

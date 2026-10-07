@@ -2,6 +2,8 @@
 
 # 04 Phase 2 预研：AdaptiveRetriever 机制栈路线图
 
+> 📍 学习路径：[README入口](../README.md) → [01域适配](01-法律域适配与复用架构.md) → [02语料管线](02-语料管线-ingest.md) → [05API](05-API服务与前端.md) → [03评估安全](03-评估与安全.md) → **04RAG机制** → [06调试实录](06-调试实录.md) → [链路浏览器](chain-explorer.html)
+
 > 一句话目标：在现有 `KnowledgeRetriever` 之上规划一条"路由 → 粗召回 → 精排 → 反思 → 重试"的自适应检索流水线，并用 `corpus_groundtruth` 的 12 条标注做同题对比，让每个机制"值不值得开"由数字决定。
 >
 
