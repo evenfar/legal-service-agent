@@ -18,6 +18,23 @@ uvicorn app.api:app --port 8300
 
 界面预览：`docs/screenshot-api-demo.png`（左聊天气泡 + 右思考过程事件流）。
 
+## Docker 启动
+
+与上节二选一。仓库根有 `Dockerfile` / `.dockerignore` / `docker-compose.yml`
+三件套（⚠️ 未在本机构建实测——编写时本机无 Docker）：
+
+```bash
+docker compose up -d --build        # 构建并后台启动（无 .env 时自动进离线 mock）
+curl http://127.0.0.1:8300/health   # 期望 {"status":"ok","offline":true,...}
+docker compose down                 # 停止并移除容器
+```
+
+要点：镜像 `python:3.11-slim` + `pip install -r requirements.txt`，`COPY .`
+时 `.dockerignore` 排除 `.env`/`**/.env`（密钥绝不进镜像层）、`.git`、
+`__pycache__`、`.pytest_cache` 与 `app/sessions`（运行时产物）；密钥由
+compose 的 `env_file`（可选，`.env` 缺失不报错）运行时注入。会话/记忆/索引
+落在具名卷 `legal-sessions`，`restart: unless-stopped` 保证崩溃/重启自愈。
+
 ## 端点
 
 | 端点 | 方法 | 说明 |
