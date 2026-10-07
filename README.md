@@ -71,3 +71,19 @@ python -m app.scripts.run_eval   # 18 条黄金用例评估（含4条安全红�
 3. **按文档顺序读代码**：01域适配 → 02语料管线 → 05API → 03评估与安全 → 04RAG机制栈
 4. **验证理解**：改一处代码跑 `pytest` + `run_eval` + `run_retrieval_eval --strict` 三件套
 5. **踩坑学习**：读 docs/06-调试实录.md（四个真实bug的完整排查，面试最有价值的素材）
+
+## 双版本说明（LangGraph 对照版）
+
+同一主链的第二种写法：[`langgraph-port` 分支](https://github.com/evenfar/legal-service-agent/tree/langgraph-port) 用 LangGraph StateGraph 重写了单 Agent 主链，作为与手写版（`app/agent/`）逐概念对照的教学资产——领域能力（LLM 客户端 / 工具九件套 / 安全模块 / 技能目录 / LegalResponse）全部 import 复用，零复制，`app/` 不改一行。
+
+```bash
+git checkout langgraph-port
+pytest tests/test_langgraph.py -q   # 12 条离线用例：图编译/红线短路/条件边路由/工具链/安全节点/多轮续跑
+pytest tests/ -q                    # 全量 123 绿（与手写版测试互为镜像，同 Mock 脚本）
+```
+
+- 代码在 `langgraph_app/` 目录（graph 图组装 / state 状态定义 / nodes 五节点）；
+- **概念映射表**（`handle_redflag`↔条件边、`react`↔节点函数+循环边、storage会话↔checkpointer、`input`审批↔interrupt、Tracer↔LangSmith 等）见该目录下 README，"什么时候选框架"的选型结论同处；
+- 图上红线消息经条件边直达急诊终点（零 LLM、零工具调用），普通查询走 build_context→react→safety→extract 管道——分流逻辑从"读代码追 if 分支"变成"看图即得"。
+
+> 叙事：**手写版证明机制理解**（ReAct / 红线短路 / 安全后处理每层都是自己写的，能徒手画出数据流）；**框架版证明工程选型**（知道 checkpointer / interrupt / LangSmith 是自研成本最高的那 30%，何时该用框架而不是为什么不用）。
