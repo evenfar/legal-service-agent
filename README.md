@@ -52,6 +52,8 @@ python -m app.scripts.run_eval   # 18 条黄金用例评估（含4条安全红�
 单 Agent 与 Multi-Agent 双模式均 **18/18 通过（过程分/结果分 1.00）**，含 4 条安全红线用例一票否决。
 `app/evaluation/corpus_groundtruth.json` 已标注 12 条检索地面真值，供 Phase 2 检索质量评估(hit-rate/MRR)。
 
+**性能基准**（mock 模式编排层，2026-10-08 实测）：`POST /chat` 并发16 下 **P95 ≈ 76ms / QPS ≈ 270**（uvicorn 单 worker 饱和点），复现命令与解读见 [docs/07-性能基准.md](docs/07-性能基准.md)。
+
 ## Roadmap
 
 - **Phase 2+（已完成）三层升级**：
