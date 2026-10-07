@@ -215,6 +215,44 @@
   .rp-ctrl{display:flex; gap:8px; align-items:center; margin-top:10px; flex-wrap:wrap;}
   .rp-stat{color:var(--dim); font-size:12px; margin-left:auto;}
 
+  /* ---------- Tab4 跟读模式（预测测验） ---------- */
+  .fd-head{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:-4px 0 12px;}
+  .fd-chip{font-size:12px; font-family:var(--mono); color:var(--dim); background:var(--panel3);
+    border:1px solid var(--line2); border-radius:10px; padding:2px 10px; flex:none;}
+  .fd-chip.done{color:var(--green); border-color:var(--green);}
+  .fd-panel{border-color:#2d5b8f; margin-bottom:14px;}
+  .fd-panel h3 .fd-qno{float:right; font-size:12px; color:var(--faint);
+    font-family:var(--mono); font-weight:normal;}
+  .fd-state{background:var(--panel2); border:1px solid var(--line); border-radius:8px;
+    padding:9px 12px; font-size:12.5px; color:var(--dim); line-height:1.95; margin-bottom:12px;}
+  .fd-state b{color:#e8eef5; font-weight:normal;}
+  .fd-state .q{color:var(--orange);}
+  .fd-opts{display:flex; flex-direction:column; gap:8px;}
+  .fd-opt{display:flex; align-items:baseline; gap:10px; width:100%; text-align:left;
+    background:var(--panel2); color:var(--txt); border:1px solid var(--line2); border-radius:8px;
+    padding:9px 12px; font-size:13px; font-family:inherit; cursor:pointer; line-height:1.6;}
+  .fd-opt:hover:not(:disabled){border-color:var(--blue); color:#cfe6ff;}
+  .fd-opt:disabled{cursor:default;}
+  .fd-opt.ok{border-color:var(--green); background:rgba(63,185,80,.12); color:#b8ecc6;}
+  .fd-opt.bad{border-color:var(--red); background:rgba(248,81,73,.12); color:#ffb3ae;}
+  .fd-opt .k{font-family:var(--mono); font-size:11px; color:var(--faint); flex:none;}
+  .fd-opt.ok .k{color:var(--green);}
+  .fd-opt.bad .k{color:var(--red);}
+  .fd-fb{margin-top:12px; border-radius:8px; padding:10px 13px; font-size:12.5px;
+    line-height:1.9; color:var(--txt); display:none;}
+  .fd-fb.on{display:block;}
+  .fd-fb.good{border:1px solid var(--green); background:rgba(63,185,80,.08);}
+  .fd-fb.bad{border:1px solid var(--red); background:rgba(248,81,73,.08);}
+  .fd-fb b{color:#e8eef5;}
+  .fd-fb .v.good{color:var(--green); font-weight:bold;}
+  .fd-fb .v.bad{color:var(--red); font-weight:bold;}
+  .fd-sum{margin-top:12px; border:1px dashed var(--yellow); border-radius:8px; padding:12px 14px;}
+  .fd-sum .big{font-size:15px; color:var(--yellow); margin-bottom:6px;}
+  .fd-sum .dist{font-size:12.5px; color:var(--dim); line-height:1.9;}
+  .fd-sum .tip{font-size:12px; color:var(--faint); margin-top:6px;}
+  .tl-dot.pend{border-color:var(--purple); background:var(--panel3);
+    box-shadow:0 0 8px var(--purple);}
+
   footer{max-width:1280px; margin:0 auto; padding:10px 20px 34px; color:var(--faint);
     font-size:12px; line-height:1.9;}
   footer code{color:var(--cyan);}
@@ -474,6 +512,19 @@ app/agent/tools/knowledge.py     search_knowledge 工具（三档置信出口）
       已裁剪超长 raw 字段）。当前事件会<b>高亮上方链路中对应的节点</b>，右侧展示事件 JSON 详情。
       注：mock 模式下<b>结构化提取不产生 tracer 事件</b>，⑤ 节点由标了「语义演示」的
       extract 事件点亮（结果取自真实 LegalResponse），也可在 Tab2 旅程第 6 步联动查看。</p>
+    <div class="fd-head">
+      <label class="switch" id="fdSwitch"><span class="knob"></span>🎯 跟读模式（预测测验）</label>
+      <span class="hint" style="margin:0;">开启后每条事件先出题预测、答完才揭示并讲解，最后按事件类型计分；
+        关闭恢复普通回放，答题进度保留（⏮ 重置会清零重练）</span>
+      <span class="fd-chip" id="fdChip" style="display:none;"></span>
+    </div>
+    <div class="card fd-panel" id="fdPanel" style="display:none;">
+      <h3>🎯 跟读模式 · 预测测验<span class="fd-qno" id="fdQNo"></span></h3>
+      <div class="fd-state" id="fdState"></div>
+      <div class="fd-opts" id="fdOpts"></div>
+      <div class="fd-fb" id="fdFb"></div>
+      <div class="fd-sum" id="fdSum" style="display:none;"></div>
+    </div>
     <div class="card rp-chain" id="rpChain"></div>
     <div class="rp-main">
       <div class="card rp-cur">
@@ -895,7 +946,7 @@ function renderTimeline(){
     box.appendChild(div);
   });
   box.querySelectorAll(".tl-dot").forEach(d => {
-    d.addEventListener("click", () => { stopPlay(); rpCur = Number(d.dataset.gi); renderReplay(); });
+    d.addEventListener("click", () => moveTo(Number(d.dataset.gi)));
   });
 }
 function stopPlay(){
@@ -913,10 +964,22 @@ function togglePlay(){
     else stopPlay();
   }, 1400);
 }
-$("#rpPlay").addEventListener("click", togglePlay);
-$("#rpNext").addEventListener("click", () => { stopPlay(); if (rpCur < FLAT.length - 1){ rpCur++; renderReplay(); } });
-$("#rpPrev").addEventListener("click", () => { stopPlay(); if (rpCur > 0){ rpCur--; renderReplay(); } });
-$("#rpReset").addEventListener("click", () => { stopPlay(); rpCur = 0; renderReplay(); });
+$("#rpPlay").addEventListener("click", () => { fdOn ? fdTogglePlay() : togglePlay(); });
+$("#rpNext").addEventListener("click", () => {
+  if (fdOn){ if (rpCur < FLAT.length - 1) moveTo(rpCur + 1); }
+  else { stopPlay(); if (rpCur < FLAT.length - 1){ rpCur++; renderReplay(); } }
+});
+$("#rpPrev").addEventListener("click", () => {
+  if (fdOn){ if (rpCur > 0) moveTo(rpCur - 1); }
+  else { stopPlay(); if (rpCur > 0){ rpCur--; renderReplay(); } }
+});
+$("#rpReset").addEventListener("click", () => {
+  stopPlay(); stopFdAuto();
+  fdAnswers.fill(null);
+  rpCur = 0;
+  if (fdOn) showQuestion(0); else renderReplay();
+  updateButtons(); updateFdBrief();
+});
 
 function renderSummary(){
   const byPurpose = {};
@@ -946,6 +1009,314 @@ function renderSummary(){
        '</b></td></tr>';
   $("#rpSummary").innerHTML = h;
 }
+
+/* ================================================================
+   Tab4 跟读模式（预测测验）：每条事件先猜再揭示，按事件类型计分
+   ================================================================ */
+/* 共享知识点：解释"这个事件在链路中的角色"，多个事件复用 */
+const FD_KP = {
+  reactFirst: "知识点：ReAct 里调哪个工具由模型说了算——第一步永远是 llm_call（react() → client.chat(messages, tools)），trace 里不存在「凭空调工具」。",
+  reactFinal: "知识点：工具观察以 role:\"tool\" 消息回填后，再次 llm_call 生成 final 文本——final 也是一次 LLM 调用的产物，不是模板拼接；模型不再发起 tool_calls 时循环结束。",
+  toolCase: "知识点：案件类问题必须先取真实数据再回答——案件事实与法条只能来自工具返回（职业边界硬约束），query_case 返回的结构化信息就是回复的事实依据。",
+  toolLimit: "知识点：时效问题硬约束走 calc_limitation 精确计算（系统提示明确要求），不允许模型凭日期心算截止日。",
+  toolRag: "知识点：search_knowledge 是 RAG 检索栈入口——query 进入 AdaptiveRetriever：策略路由 → dense+BM25 双路召回 → 精排 → 三档置信出口。",
+  redflag: "知识点：人身安全不排队等 LLM——红旗规则短路零延迟、零 LLM 调用，直接构造 emergency LegalResponse（requires_human=true）；规则层宁可误报不可漏报。",
+  route: "知识点：Multi-Agent 模式先路由后干活——LLM 分类（temperature=0、max_tokens=10）→ 受控词表「包含匹配」→ 子Agent 拿 registry.subset(白名单) 工具视图。",
+  nli: "知识点：NLI 句级核验只标记、不改写文本——防核验器自身的错误污染本来正确的答案；supported_ratio≥0.5 且 checked≥2 才考虑转人工。",
+  extract: "知识点：上游平台只消费结构化字段——EXTRACT_SYSTEM + final → LegalResponse（intent/confidence/urgency…），reply 用原文不改写。（mock 模式不产生 tracer 事件，本条为语义演示）"
+};
+
+/* 16 题题库：ok=正确答案（即将发生的事件），ds=两个"合理但错误"的干扰项（t=文案 w=错在哪），kp=知识点，cat=计分分类 */
+const QUIZ_BANK = [
+  { cat:"llm决策·先调工具", kp:"reactFirst",
+    ok:"把对话发给模型决策（ReAct 第 1 步）",
+    ds:[ { t:"直接输出 final 回答，不再调任何工具",
+           w:"案件进展必须查真实数据；且 ReAct 的每段输出都来自一次 llm_call——本次 completion_tokens=0，说明模型输出的是 tool_calls 决策而非成稿文本" },
+         { t:"调用工具 query_case 查案件进展",
+           w:"query_case 确实马上会被调，但工具由模型决策触发——没有先问模型，registry 不知道该执行什么" } ] },
+  { cat:"tool_call", kp:"toolCase",
+    ok:"调用工具 query_case 查案件进展",
+    ds:[ { t:"调用工具 search_knowledge 检索法律知识库",
+           w:"问的是具体案件的进展，取数入口是案件库 query_case；search_knowledge 面向法条/类案语料" },
+         { t:"把案件号交给模型凭上下文直接回答",
+           w:"案件事实只能来自工具返回（职业边界硬约束），模型并不掌握内部案件库" } ] },
+  { cat:"llm决策·出final", kp:"reactFinal",
+    ok:"把对话发给模型决策（带上工具观察生成回复）",
+    ds:[ { t:"直接输出 final 回答（不再调用模型）",
+           w:"final 文本本身是一次 llm_call 的产物——本次 completion_tokens=49 就是生成的回复，不是拼接" },
+         { t:"对回复做 NLI 句级核验",
+           w:"本轮用过的工具里没有 search_knowledge，安全后处理整体旁路（零成本旁路设计）" } ] },
+  { cat:"llm决策·先调工具", kp:"reactFirst",
+    ok:"把对话发给模型决策（ReAct 第 1 步）",
+    ds:[ { t:"命中「时效临界」红线直接回复",
+           w:"问句是咨询「还剩多久」，没有临近/已过时效的陈述性表述，红旗未命中，正常进入主管线" },
+         { t:"直接输出 final 回答，不调工具",
+           w:"时效必须精确计算，模型第 1 步会先决策调工具——trace 第 1 条事件是 llm_call（completion_tokens=0）" } ] },
+  { cat:"tool_call", kp:"toolLimit",
+    ok:"调用工具 calc_limitation 精确计算时效",
+    ds:[ { t:"调用工具 search_knowledge 查诉讼时效的规定",
+           w:"「查规定」和「算本案截止日」是两件事；系统提示硬约束要求时效问题用 calc_limitation 精确计算" },
+         { t:"让模型根据借贷日期自己估算剩余时间",
+           w:"日期推算交给模型容易错——trace 显示的是一次真正的工具调用（返回 deadline/days_left/basis）" } ] },
+  { cat:"llm决策·出final", kp:"reactFinal",
+    ok:"把对话发给模型决策（带上工具观察生成回复）",
+    ds:[ { t:"直接输出 final 回答（不再调用模型）",
+           w:"final 是第二次 llm_call 的产物（completion_tokens=65），带上工具观察生成，不是拼接" },
+         { t:"把结果写入长期记忆并压缩会话",
+           w:"收尾持久化在 final 之后才发生，且压缩阈值 12 条未到——本轮下一条 trace 仍是 llm_call" } ] },
+  { cat:"llm决策·先调工具", kp:"reactFirst",
+    ok:"把对话发给模型决策（ReAct 第 1 步）",
+    ds:[ { t:"调用工具 search_knowledge 检索法条",
+           w:"检索会发生，但调哪个工具由模型决策——第 1 条 trace 是 llm_call（completion_tokens=0，输出 tool_calls）" },
+         { t:"直接输出 final 回答",
+           w:"法条科普需要检索依据，模型第 1 步不会直接成稿" } ] },
+  { cat:"tool_call", kp:"toolRag",
+    ok:"调用工具 search_knowledge 检索知识库",
+    ds:[ { t:"调用工具 query_law_article 精确查法条原文",
+           w:"两条路都存在，但本次模型选择了 RAG 检索栈——返回值里有 strategy/confidence/chunks 这些 AdaptiveRetriever 的特征字段" },
+         { t:"调用工具 search_precedents 查类案裁判",
+           w:"问的是「法条怎么规定」而非类案——trace 记录的 tool 是 search_knowledge" } ] },
+  { cat:"llm决策·出final", kp:"reactFinal",
+    ok:"把对话发给模型决策（基于检索片段生成回复）",
+    ds:[ { t:"直接输出 final 回答（不再调用模型）",
+           w:"final 是 llm_call 的产物；本次 prompt_tokens=1410 正是因为上下文里装进了检索片段" },
+         { t:"调用工具 query_law_article 补充法条原文",
+           w:"prompt 已含检索片段，模型基于片段成稿——本轮此后没有新的 tool_call" } ] },
+  { cat:"NLI核验", kp:"nli",
+    ok:"对回复做 NLI 句级核验",
+    ds:[ { t:"把回复改写得更严谨一些",
+           w:"NLI 只标记、不改写——防核验器自身的错误污染本来正确的答案（免责话术只是被如实标记为无证据支持）" },
+         { t:"为回复追加缺失的参考来源",
+           w:"补来源在核验之前；本条事件是核验本身：supported_ratio=0.9、checked=10" } ] },
+  { cat:"结构化提取", kp:"extract",
+    ok:"结构化提取：把回复解析成 LegalResponse 字段",
+    ds:[ { t:"把本轮对话写入长期记忆",
+           w:"巩固长期记忆发生在会话 close()，提取在返回用户之前完成——且 mock 模式本条为语义演示（真实模式是 purpose=extract 的 llm_call）" },
+         { t:"再对回复做一轮安全扫描",
+           w:"安全后处理（注入扫描/引用校验/NLI）在 final 之后立即完成，提取是返回前的最后一站" } ] },
+  { cat:"redflag短路", kp:"redflag",
+    ok:"规则命中红线（威胁恐吓）直接回复，零 LLM 调用",
+    ds:[ { t:"调用 query_case 查相关案件",
+           w:"人身安全不排队等工具/LLM——红旗短路在一切之前，直接构造 emergency LegalResponse" },
+         { t:"交给模型分析后再回复",
+           w:"威胁类内容等 LLM 往返会引入延迟与漏报；规则层宁可误报不可漏报，本轮 trace 只有 1 条 redflag_shortcut 事件" } ] },
+  { cat:"路由分类", kp:"route",
+    ok:"调用 LLM 做意图路由分类",
+    ds:[ { t:"把对话发给主 Agent 的 ReAct 循环",
+           w:"Multi-Agent 模式先路由后干活——第 1 条 trace 是分类 LLM（temperature=0、max_tokens=10，completion 只有 4 个 token）" },
+         { t:"直接输出 final 回答",
+           w:"还没路由到子 Agent，也没有任何工具观察，不可能成稿" } ] },
+  { cat:"子Agent路由", kp:"route",
+    ok:"路由 → 交给「合同债务助理」子Agent 处理",
+    ds:[ { t:"调用工具 query_case 查案件",
+           w:"先路由后干活：子Agent 拿到白名单工具视图后才开始 ReAct，本条 trace 是 route 事件" },
+         { t:"把对话发给模型生成最终回复",
+           w:"分类结果要先落到具体子Agent——route 事件记录的 agent=合同债务助理" } ] },
+  { cat:"tool_call", kp:"toolCase",
+    ok:"调用工具 query_case 查案件进展（子Agent 白名单内）",
+    ds:[ { t:"调用工具 search_knowledge 检索知识库",
+           w:"问的是具体案件进展；且 query_case 在该子Agent 的白名单里，经 registry.subset() 视图执行" },
+         { t:"调用工具 calc_limitation 计算时效",
+           w:"问题没有涉及时效计算，模型选择的是案件查询" } ] },
+  { cat:"llm决策·出final", kp:"reactFinal",
+    ok:"把对话发给模型决策（生成最终回复）",
+    ds:[ { t:"直接输出 final 回答（不再调用模型）",
+           w:"final 是第二次 llm_call 的产物（completion_tokens=49），不是拼接" },
+         { t:"路由回主 Agent 汇总结果",
+           w:"子Agent 自己完成 ReAct 收尾；主链路只在其后做提取与持久化" } ] },
+];
+
+let fdOn = false, fdAuto = false, fdTimer = null;
+const fdAnswers = new Array(FLAT.length).fill(null);   // 答题状态：关掉跟读再开不丢失
+const fdAllDone = () => fdAnswers.every(a => a);
+const fdDone = () => fdAnswers.filter(Boolean).length;
+const fdOkCount = () => fdAnswers.filter(a => a && a.correct).length;
+
+/* 选项顺序按题号轮转，正确项不固定在同一个位置（同题复查时顺序稳定） */
+function fdOrder(gi){
+  const b = QUIZ_BANK[gi];
+  const opts = [{ key:0, text:b.ok }, { key:1, text:b.ds[0].t }, { key:2, text:b.ds[1].t }];
+  const r = gi % 3;
+  return opts.slice(opts.length - r).concat(opts.slice(0, opts.length - r));
+}
+function fdShort(ev){
+  if (ev.type === "llm_call"){
+    if (ev.purpose === "extract") return "结构化提取";
+    if ((ev.note || "").indexOf("路由") >= 0) return "路由分类 LLM";
+    return "LLM 决策";
+  }
+  if (ev.type === "tool_call") return "调工具 " + ev.tool;
+  if (ev.type === "route") return "路由→" + ev.agent;
+  if (ev.type === "nli_check") return "NLI 句级核验";
+  if (ev.type === "redflag_shortcut") return "红旗短路（" + (ev.flags || []).join("、") + "）";
+  return ev.type;
+}
+/* 出题前展示的系统状态：轮次 + 用户消息 + 本轮已发生（不剧透下一条） */
+function fdStateHTML(gi){
+  const f = FLAT[gi];
+  const prior = FLAT.filter(x => x.ti === f.ti && x.ei < f.ei).map(x => fdShort(x.ev));
+  const head = "轮次 " + (f.ti + 1) + " / " + REPLAY.length +
+    "（" + (f.mode === "multi" ? "Multi-Agent 模式" : "单 Agent") + "）";
+  const st = f.ei === 0
+    ? "用户消息：<b>「" + esc(f.q) + "」</b>已进入 chat()（红旗检测最先运行）"
+    : "用户消息：「" + esc(f.q) + "」· 本轮已发生：<b>" + prior.map(esc).join(" → ") + "</b>";
+  return "<div>" + head + "</div><div>" + st +
+    '</div><div class="q">❓ 预测：接下来系统会做什么？（答对答错都会揭示该事件并讲解）</div>';
+}
+/* 出题：锁定事件（高亮/详情不剧透），等作答 */
+function showQuestion(gi){
+  const ans = fdAnswers[gi];
+  $("#fdQNo").textContent = "第 " + (gi + 1) + " / " + FLAT.length + " 题";
+  $("#fdState").innerHTML = fdStateHTML(gi);
+  const box = $("#fdOpts");
+  box.innerHTML = "";
+  const order = fdOrder(gi);
+  order.forEach((o, i) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "fd-opt";
+    const k = document.createElement("span");
+    k.className = "k";
+    k.textContent = "ABC"[i];
+    btn.appendChild(k);
+    btn.appendChild(document.createTextNode(o.text));   // 选项文案纯文本渲染
+    btn.disabled = !!ans;
+    btn.addEventListener("click", () => fdAnswer(gi, o.key));
+    box.appendChild(btn);
+  });
+  if (ans){ renderReplay(); fdApplyAnswer(gi, ans); }    // 复查：直接揭示 + 回放判定
+  else {
+    $("#fdFb").className = "fd-fb";
+    $("#fdFb").innerHTML = "";
+    fdRenderPending(gi);
+  }
+  if (fdAllDone()) renderFdSum(); else $("#fdSum").style.display = "none";
+  updateButtons(); updateFdBrief();
+}
+function fdRenderPending(gi){
+  document.querySelectorAll("#rpChain .node").forEach(nd => nd.classList.remove("hl"));
+  $("#rpInfo").innerHTML =
+    '<div class="ev-meta">🔒 跟读模式出题中——先在上方选择你的预测，<br>' +
+    "答完后揭示第 <b>" + (gi + 1) + " / " + FLAT.length + "</b> 条事件（节点高亮 + JSON 详情照常）。</div>";
+  $("#rpJson").textContent = "// 事件已锁定：作答后揭示";
+  $("#rpStat").textContent = "事件 " + (gi + 1) + " / " + FLAT.length + " · 出题待答";
+  const dots = document.querySelectorAll(".tl-dot");
+  dots.forEach((d, i) => {
+    d.className = "tl-dot" + (i < gi ? " past" : i === gi ? " cur pend" : "");
+  });
+  document.querySelectorAll(".tl-turn .tq").forEach((t, i) => {
+    t.classList.toggle("now", i === FLAT[gi].ti);
+  });
+}
+function fdFbHTML(gi, ans){
+  const b = QUIZ_BANK[gi];
+  if (ans.correct)
+    return '<span class="v good">✓ 答对了！</span>' + FD_KP[b.kp];
+  const wrong = b.ds[ans.pick - 1];
+  return '<span class="v bad">✗ 不对。</span>正确答案是「<b>' + esc(b.ok) + '</b>」。<br>' +
+    "你选的「" + esc(wrong.t) + "」为什么错：" + esc(wrong.w) + "。<br>" + FD_KP[b.kp];
+}
+function fdApplyAnswer(gi, ans){
+  const order = fdOrder(gi);
+  const btns = document.querySelectorAll("#fdOpts .fd-opt");
+  btns.forEach((b, i) => {
+    b.disabled = true;
+    if (order[i].key === 0) b.classList.add("ok");
+    else if (!ans.correct && order[i].key === ans.pick) b.classList.add("bad");
+  });
+  const fb = $("#fdFb");
+  fb.className = "fd-fb on " + (ans.correct ? "good" : "bad");
+  fb.innerHTML = fdFbHTML(gi, ans);
+}
+/* 作答 → 立即揭示该事件（高亮+详情照常），再决定是否自动进入下一题 */
+function fdAnswer(gi, key){
+  if (fdAnswers[gi]) return;
+  fdAnswers[gi] = { pick:key, correct:key === 0 };
+  renderReplay();
+  fdApplyAnswer(gi, fdAnswers[gi]);
+  updateButtons(); updateFdBrief();
+  if (fdAllDone()){ stopFdAuto(); renderFdSum(); }
+  else if (fdAuto){
+    fdTimer = setTimeout(() => {
+      fdTimer = null;
+      if (fdAuto && rpCur < FLAT.length - 1) moveTo(rpCur + 1);
+    }, 2600);
+  }
+}
+/* 计分：答对 X/16 + 按事件类型的错题分布 */
+function renderFdSum(){
+  const cats = {};
+  FLAT.forEach((f, gi) => {
+    const c = QUIZ_BANK[gi].cat;
+    cats[c] = cats[c] || { n:0, ok:0 };
+    cats[c].n++;
+    if (fdAnswers[gi] && fdAnswers[gi].correct) cats[c].ok++;
+  });
+  const ok = fdOkCount(), n = FLAT.length;
+  const parts = Object.keys(cats).map(c => {
+    const u = cats[c];
+    return u.ok === u.n
+      ? "「" + c + "」判断全对（" + u.ok + "/" + u.n + "）"
+      : "「" + c + "」错 " + (u.n - u.ok) + " 次（对 " + u.ok + "/" + u.n + "）";
+  });
+  $("#fdSum").innerHTML =
+    '<div class="big">🎯 跟读完成 · 答对 ' + ok + " / " + n +
+    "（" + Math.round(ok / n * 100) + "%）</div>" +
+    '<div class="dist">' + parts.join("；") + "。</div>" +
+    (ok === n
+      ? '<div class="tip">全对！链路心智模型已经就位 🎉</div>'
+      : '<div class="tip">错题已按事件类型列出——可回到 Tab1 点开对应节点读「为什么这么设计」，或关掉跟读模式自由回放对照。</div>');
+  $("#fdSum").style.display = "";
+}
+function updateFdBrief(){
+  const done = fdDone();
+  $("#fdChip").textContent = "🎯 跟读 " + done + "/" + FLAT.length +
+    (done ? " · 答对 " + fdOkCount() : "");
+  $("#fdChip").classList.toggle("done", done === FLAT.length && fdOkCount() === FLAT.length);
+}
+function updateButtons(){
+  if (!fdOn){
+    $("#rpPlay").disabled = false; $("#rpNext").disabled = false; $("#rpPrev").disabled = false;
+    return;
+  }
+  const pend = !fdAnswers[rpCur];
+  $("#rpNext").disabled = pend || rpCur >= FLAT.length - 1;
+  $("#rpPrev").disabled = rpCur === 0;
+  $("#rpPlay").disabled = pend || fdAllDone();
+}
+function stopFdAuto(){
+  fdAuto = false;
+  clearTimeout(fdTimer);
+  fdTimer = null;
+  $("#rpPlay").textContent = "▶ 播放";
+}
+/* 双模式统一入口：跟读模式下未作答的事件先出题 */
+function moveTo(gi){
+  stopPlay();
+  clearTimeout(fdTimer); fdTimer = null;
+  rpCur = Math.max(0, Math.min(FLAT.length - 1, gi));
+  if (fdOn) showQuestion(rpCur); else renderReplay();
+  if (fdOn && fdAuto) $("#rpPlay").textContent = "⏸ 暂停（作答后继续）";
+  updateButtons();
+}
+/* 自动播放 + 跟读：出题即暂停，作答揭示后延时进入下一题 */
+function fdTogglePlay(){
+  if (!fdOn || fdAllDone() || !fdAnswers[rpCur]) return;
+  if (fdAuto){ stopFdAuto(); return; }
+  if (rpCur >= FLAT.length - 1) return;
+  fdAuto = true;
+  moveTo(rpCur + 1);
+}
+/* 跟读开关：关→普通回放（答题进度保留）；再开→从当前事件继续出题/复查 */
+$("#fdSwitch").addEventListener("click", function(){
+  fdOn = !fdOn;
+  this.classList.toggle("on", fdOn);
+  stopPlay(); stopFdAuto();
+  $("#fdPanel").style.display = fdOn ? "" : "none";
+  $("#fdChip").style.display = fdOn ? "" : "none";
+  if (fdOn) showQuestion(rpCur);
+  else { renderReplay(); updateButtons(); }
+});
 
 /* ---------- Tab2 ↔ 链路联动：旅程到达 ④/⑤ 时点亮对应节点 ---------- */
 function hlChainNodes(ids){
