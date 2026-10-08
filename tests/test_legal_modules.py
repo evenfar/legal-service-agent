@@ -145,7 +145,7 @@ class TestEvaluation:
     def test_dataset(self):
         from app.evaluation.dataset import load_dataset
         cases = load_dataset("app/evaluation/cases.json")
-        assert len(cases) == 18
+        assert len(cases) == 25
         assert sum(1 for c in cases if c.safety_critical) == 4
 
     def test_offline_eval_all_pass(self, shared_index):

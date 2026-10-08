@@ -289,6 +289,136 @@
       ],
       "min_tool_calls": 2,
       "max_tokens": 12000
+    },
+    {
+      "id": "knowledge_guarantee_contract",
+      "description": "知识库检索：保证合同规则（合同编命中）",
+      "turns": [
+        "保证合同怎么订立"
+      ],
+      "expected_intent": "law_article",
+      "expected_keywords": [
+        "保证合同",
+        "第六百八十一条"
+      ],
+      "expected_requires_human": false,
+      "expected_tools": [
+        "search_knowledge"
+      ],
+      "min_tool_calls": 1,
+      "max_tokens": 10000
+    },
+    {
+      "id": "limitation_near_deadline_calc",
+      "description": "时效临界表述：走计算器而非红线短路",
+      "turns": [
+        "2024年1月借款到期未还，诉讼时效还剩多久"
+      ],
+      "expected_intent": "procedure",
+      "expected_keywords": [
+        "时效截止",
+        "中断"
+      ],
+      "expected_requires_human": true,
+      "expected_urgency": "urgent",
+      "expected_tools": [
+        "calc_limitation"
+      ],
+      "min_tool_calls": 1,
+      "max_tokens": 9000
+    },
+    {
+      "id": "limitation_invalid_date_error",
+      "description": "时效计算错误：无效日期如实转达",
+      "turns": [
+        "2024年13月借的钱到期没还，诉讼时效还剩多久"
+      ],
+      "expected_intent": "other",
+      "expected_keywords": [
+        "日期格式应为 YYYY-MM-DD"
+      ],
+      "expected_requires_human": false,
+      "expected_tools": [
+        "calc_limitation"
+      ],
+      "min_tool_calls": 1,
+      "max_tokens": 9000
+    },
+    {
+      "id": "tort_compensation_items",
+      "description": "车祸人身损害：赔偿范围法条直查",
+      "turns": [
+        "车祸受伤赔偿哪些项目"
+      ],
+      "expected_intent": "law_article",
+      "expected_keywords": [
+        "第一千一百七十九条",
+        "医疗费"
+      ],
+      "expected_requires_human": false,
+      "expected_tools": [
+        "query_law_article"
+      ],
+      "min_tool_calls": 1,
+      "max_tokens": 8000
+    },
+    {
+      "id": "precedent_no_hit",
+      "description": "类案检索未命中：显式说明而非沉默",
+      "turns": [
+        "宠物咬人判例"
+      ],
+      "expected_intent": "other",
+      "expected_keywords": [
+        "案例索引未命中",
+        "不代表无类似案例"
+      ],
+      "expected_requires_human": false,
+      "expected_tools": [
+        "search_precedents"
+      ],
+      "min_tool_calls": 1,
+      "max_tokens": 9000
+    },
+    {
+      "id": "multi_turn_case_court_limitation",
+      "description": "多轮：查案→改期管辖→时效计算链式会话",
+      "turns": [
+        "查一下案件 LS-2026-003 的进展",
+        "改期要向法院申请吗",
+        "2024年9月立案，诉讼时效还剩多久"
+      ],
+      "expected_intent": "procedure",
+      "expected_keywords": [
+        "时效截止",
+        "2027-09-01"
+      ],
+      "expected_requires_human": false,
+      "expected_tools": [
+        "query_case",
+        "query_court",
+        "calc_limitation"
+      ],
+      "min_tool_calls": 3,
+      "max_tokens": 12000
+    },
+    {
+      "id": "case_cancel_inquiry",
+      "description": "取消执行咨询：案件现状如实转达",
+      "turns": [
+        "LS-2026-005 我想取消强制执行，能退费吗"
+      ],
+      "expected_intent": "case_query",
+      "expected_keywords": [
+        "执行中",
+        "买卖合同纠纷"
+      ],
+      "expected_requires_human": false,
+      "expected_tools": [
+        "query_case"
+      ],
+      "min_tool_calls": 1,
+      "max_tokens": 9000
     }
   ]
 }

@@ -49,7 +49,7 @@ python -m app.scripts.run_eval   # 18 条黄金用例评估（含4条安全红�
 
 ## 评估成绩（离线规则模式）
 
-单 Agent 与 Multi-Agent 双模式均 **18/18 通过（过程分/结果分 1.00）**，含 4 条安全红线用例一票否决。
+单 Agent 与 Multi-Agent 双模式均 **25/25 通过（过程分/结果分 1.00）**，含 4 条安全红线用例一票否决。
 `app/evaluation/corpus_groundtruth.json` 已标注 12 条检索地面真值，供 Phase 2 检索质量评估(hit-rate/MRR)。
 
 **性能基准**（mock 模式编排层，2026-10-08 实测）：`POST /chat` 并发16 下 **P95 ≈ 76ms / QPS ≈ 270**（uvicorn 单 worker 饱和点），复现命令与解读见 [docs/07-性能基准.md](docs/07-性能基准.md)。
@@ -62,7 +62,7 @@ python -m app.scripts.run_eval   # 18 条黄金用例评估（含4条安全红�
   ③真实embedding列：OpenRouter text-embedding-3-small（`kb_index_real.json`）
   ④兜错体系：模型故障转移链 主→备→规则模板永不失败（`llm/router.py`）+ 检索置信度三档拒答
   ⑤法条引用图谱：案例↔法条双向边邻居提名（`rag/citation_graph.py`）+ 规则NLI句级防幻觉（`safety/nli.py`）
-  实测（12条groundtruth双列）：离线hash hit@3 0.33→**0.83**；真实emb 0.92→**1.00**（rerank/hybrid/adaptive并列满档）
+  实测（20条groundtruth双列）：离线hash hit@3 0.33→**0.83**；真实emb 0.92→**1.00**（rerank/hybrid/adaptive并列满档）
   `python -m app.scripts.run_retrieval_eval --strict [--real]`；109测试全绿
 - 工程化：CI / Docker / FastAPI 服务化（与 med 项目共用升级路径）
 
