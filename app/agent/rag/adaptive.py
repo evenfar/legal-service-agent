@@ -19,8 +19,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
 
 from app.agent.rag.backends.base import RetrievedChunk
 from app.agent.rag.chunker import chunk_markdown_dir  # noqa: F401 (文档引用)

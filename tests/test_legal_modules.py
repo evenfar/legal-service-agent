@@ -93,12 +93,15 @@ class TestRag:
     def test_groundtruth_file_valid(self):
         data = json.loads((ROOT / "app/evaluation/corpus_groundtruth.json")
                           .read_text(encoding="utf-8"))
-        assert len(data["entries"]) >= 10
+        assert len(data["entries"]) == 20
         for e in data["entries"]:
             assert e["expected"], e["query"]
             for src in e["expected"]:
-                doc = src.split("#")[0]
-                assert (ROOT / "app/agent/rag/knowledge" / f"{doc}.md").exists(), src
+                doc, _, section = src.partition("#")
+                md = ROOT / "app/agent/rag/knowledge" / f"{doc}.md"
+                assert md.exists(), src
+                # 小节名须与知识库 H2 逐字一致（命中判定键）
+                assert f"## {section}" in md.read_text(encoding="utf-8"), src
 
 
 # ================= 技能 =================
